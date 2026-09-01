@@ -1,0 +1,404 @@
+extends Node
+## godot-mcp runtime probe (issue #66). Runs **in the game**, not the editor.
+##
+## Add this script as an autoload in the *consuming* game's project to enable godot-mcp
+## live runtime inspection/input while the game runs from the editor. It registers an
+## EngineDebugger message capture on the "godot_mcp" channel and answers queries from the
+## addon's MCPDebugger (editor side). It does nothing outside a debug session, so it is
+## safe to leave enabled (it no-ops in exported/non-debug builds).
+##
+## Games that want to support force_break should check ``force_break_pending`` in their
+## main loop (e.g. _process) and call the ``breakpoint`` keyword when it is true.
+
+const MAX_DEPTH := 32
+
+var force_break_pending: bool = false  ## Set true by the editor via force_break message.
+
+
+## Check if the editor has requested a force_break and trigger ``breakpoint`` if so.
+## Call this from the game's ``_process`` or ``_physics_process`` loop. Returns
+## ``true`` if a break was triggered, ``false`` otherwise.
+func check_force_break() -> bool:
+	if force_break_pending:
+		force_break_pending = false
+		breakpoint
+		return true
+	return false
+
+
+
+func _ready() -> void:
+	if EngineDebugger.is_active():
+		EngineDebugger.register_message_capture("godot_mcp", _capture)
+		EngineDebugger.send_message("godot_mcp:ready", [])
+
+
+## Capture handler: the "godot_mcp:" prefix is stripped before this is called.
+func _capture(message: String, data: Array) -> bool:
+	match message:
+		"ping":
+			EngineDebugger.send_message("godot_mcp:pong", [])
+			return true
+		"get_scene_tree":
+			EngineDebugger.send_message("godot_mcp:scene_tree", [_serialize_tree()])
+			return true
+		"simulate_key":
+			_inject_key(_payload(data))
+			return true
+		"simulate_mouse":
+			_inject_mouse(_payload(data))
+			return true
+		"simulate_action":
+			_inject_action(_payload(data))
+			return true
+		"play_input_sequence":
+			_play_input_sequence(_payload(data))
+			return true
+		"monitor_property":
+			_start_monitor(_payload(data))
+			return true
+		"find_ui":
+			EngineDebugger.send_message("godot_mcp:ui_elements", [_find_ui(_payload(data))])
+			return true
+		"record_start":
+			_record_start(_payload(data))
+			return true
+		"record_stop":
+			_record_stop()
+			return true
+		"get_performance":
+			EngineDebugger.send_message("godot_mcp:performance", [_performance_snapshot()])
+			return true
+		"clear_breakpoints":
+			EngineDebugger.clear_breakpoints()
+			return true
+		"force_break":
+			# Set a flag that the game can check in its _process loop.
+			# Calling EngineDebugger.debug() from inside _capture() deadlocks
+			# because debug() blocks until the editor replies with continue/step.
+			force_break_pending = true
+			EngineDebugger.send_message("godot_mcp:force_break_ack", [])
+			print("[MCPRuntimeProbe] force_break_pending SET to true")
+			return true
+	return false
+
+
+# --- profiling (issue #38) -------------------------------------------------
+
+# Same curated monitors as the editor side (command_router._PERF_MONITORS).
+const _PERF_MONITORS := {
+	"fps": Performance.TIME_FPS,
+	"process_time": Performance.TIME_PROCESS,
+	"physics_process_time": Performance.TIME_PHYSICS_PROCESS,
+	"memory_static": Performance.MEMORY_STATIC,
+	"memory_static_max": Performance.MEMORY_STATIC_MAX,
+	"object_count": Performance.OBJECT_COUNT,
+	"node_count": Performance.OBJECT_NODE_COUNT,
+	"resource_count": Performance.OBJECT_RESOURCE_COUNT,
+	"orphan_node_count": Performance.OBJECT_ORPHAN_NODE_COUNT,
+	"objects_drawn": Performance.RENDER_TOTAL_OBJECTS_IN_FRAME,
+	"primitives_drawn": Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME,
+	"draw_calls": Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME,
+	"video_mem_used": Performance.RENDER_VIDEO_MEM_USED,
+	"texture_mem_used": Performance.RENDER_TEXTURE_MEM_USED,
+	"buffer_mem_used": Performance.RENDER_BUFFER_MEM_USED,
+	"physics_2d_active": Performance.PHYSICS_2D_ACTIVE_OBJECTS,
+	"physics_3d_active": Performance.PHYSICS_3D_ACTIVE_OBJECTS,
+}
+
+
+func _performance_snapshot() -> Dictionary:
+	var monitors: Dictionary = {}
+	for name in _PERF_MONITORS:
+		monitors[name] = Performance.get_monitor(_PERF_MONITORS[name])
+	return monitors
+
+
+# --- input simulation (issue #36) ------------------------------------------
+
+const _MOUSE_BUTTONS := {
+	"left": MOUSE_BUTTON_LEFT,
+	"right": MOUSE_BUTTON_RIGHT,
+	"middle": MOUSE_BUTTON_MIDDLE,
+	"wheel_up": MOUSE_BUTTON_WHEEL_UP,
+	"wheel_down": MOUSE_BUTTON_WHEEL_DOWN,
+}
+
+
+func _payload(data: Array) -> Dictionary:
+	return data[0] if not data.is_empty() and data[0] is Dictionary else {}
+
+
+func _inject_key(d: Dictionary) -> void:
+	var event := InputEventKey.new()
+	event.keycode = OS.find_keycode_from_string(str(d.get("key", "")))
+	event.pressed = bool(d.get("pressed", true))
+	event.shift_pressed = bool(d.get("shift", false))
+	event.ctrl_pressed = bool(d.get("ctrl", false))
+	event.alt_pressed = bool(d.get("alt", false))
+	event.meta_pressed = bool(d.get("meta", false))
+	# device left at default 0. Verified on Godot 4.7 (GH-116274 made real keyboard
+	# events device=16 / mouse=32) that injected events still reach _input/
+	# _unhandled_input and update InputMap action state — tests/input_inject_smoke.gd.
+	Input.parse_input_event(event)
+	_ack()
+
+
+func _inject_mouse(d: Dictionary) -> void:
+	var position := Vector2(float(d.get("x", 0.0)), float(d.get("y", 0.0)))
+	var button_name := str(d.get("button", ""))
+	# device left at default 0 on the synthesized events below — injection verified
+	# on Godot 4.7 (GH-116274), see the _inject_key note and input_inject_smoke.gd.
+	if button_name.is_empty():
+		var motion := InputEventMouseMotion.new()
+		motion.position = position
+		motion.relative = Vector2(float(d.get("relative_x", 0.0)), float(d.get("relative_y", 0.0)))
+		Input.parse_input_event(motion)
+	else:
+		if not _MOUSE_BUTTONS.has(button_name):
+			return  # ignore an unknown button name rather than defaulting to a left click
+		var event := InputEventMouseButton.new()
+		event.button_index = _MOUSE_BUTTONS[button_name]
+		event.pressed = bool(d.get("pressed", true))
+		event.position = position
+		Input.parse_input_event(event)
+	_ack()
+
+
+func _inject_action(d: Dictionary) -> void:
+	var action := StringName(str(d.get("action", "")))
+	if not InputMap.has_action(action):
+		return  # action not in the running game's InputMap — drop it (no ack)
+	if bool(d.get("pressed", true)):
+		Input.action_press(action, float(d.get("strength", 1.0)))
+	else:
+		Input.action_release(action)
+	_ack()
+
+
+## Replay a sequence of events with a delay between each (runs as a coroutine).
+func _play_input_sequence(d: Dictionary) -> void:
+	var events: Array = d.get("events", [])
+	var delay_ms := int(d.get("delay_ms", 0))
+	for event in events:
+		if not (event is Dictionary):
+			continue
+		match str(event.get("type", "")):
+			"key":
+				_inject_key(event)
+			"mouse":
+				_inject_mouse(event)
+			"action":
+				_inject_action(event)
+		if delay_ms > 0:
+			await get_tree().create_timer(float(delay_ms) / 1000.0).timeout
+
+
+## Tell the editor an input event was injected, so it can confirm delivery.
+func _ack() -> void:
+	EngineDebugger.send_message("godot_mcp:input_ack", [])
+
+
+func _serialize_tree() -> Dictionary:
+	return _node_to_dict(get_tree().root, 0)
+
+
+## JSON-safe { name, type, path, children } snapshot of the live node, bounded by depth.
+func _node_to_dict(node: Node, depth: int) -> Dictionary:
+	var children: Array = []
+	if depth < MAX_DEPTH:
+		for child in node.get_children():
+			children.append(_node_to_dict(child, depth + 1))
+	return {
+		"name": String(node.name),
+		"type": node.get_class(),
+		"path": String(node.get_path()),
+		"children": children,
+	}
+
+
+# --- runtime inspection (issue #35) ----------------------------------------
+
+const _MONITOR_MAX_SAMPLES := 300
+
+var _monitor_target: NodePath = NodePath()
+var _monitor_property := ""
+var _monitor_remaining := 0
+var _monitor_samples: Array = []
+var _monitor_error := ""
+
+
+## Sample the monitored property once per frame until the requested count is reached,
+## then push the completed series to the editor (bounded capture — no perpetual stream).
+func _process(_delta: float) -> void:
+	if _monitor_remaining <= 0:
+		return
+	_monitor_remaining -= 1
+	var node := get_node_or_null(_monitor_target)
+	if node == null:
+		_monitor_error = "node not found at '%s'" % String(_monitor_target)
+		_monitor_remaining = 0
+	else:
+		_monitor_samples.append({
+			"frame": Engine.get_process_frames(),
+			"value": _json_safe(node.get(_monitor_property)),
+		})
+	if _monitor_remaining <= 0:
+		_push_samples()
+
+
+func _start_monitor(d: Dictionary) -> void:
+	_monitor_target = NodePath(str(d.get("node_path", "")))
+	_monitor_property = str(d.get("property", ""))
+	_monitor_samples = []
+	_monitor_error = ""
+	var count := clampi(int(d.get("samples", 30)), 1, _MONITOR_MAX_SAMPLES)
+	var node := get_node_or_null(_monitor_target)
+	if node == null:
+		_monitor_error = "node not found at '%s'" % String(_monitor_target)
+		_monitor_remaining = 0
+		_push_samples()
+		return
+	if not (_monitor_property in node):
+		_monitor_error = "no property '%s' on the node" % _monitor_property
+		_monitor_remaining = 0
+		_push_samples()
+		return
+	_monitor_remaining = count  # _process collects one sample per frame
+
+
+func _push_samples() -> void:
+	EngineDebugger.send_message("godot_mcp:property_samples", [{
+		"node_path": String(_monitor_target),
+		"property": _monitor_property,
+		"samples": _monitor_samples,
+		"error": _monitor_error,
+		"ready": true,
+	}])
+
+
+## Collect live Control nodes matching the filters, with their global rect (for clicking).
+func _find_ui(d: Dictionary) -> Dictionary:
+	var out: Array = []
+	_collect_controls(
+		get_tree().root,
+		str(d.get("name_contains", "")).to_lower(),
+		str(d.get("class_filter", "")),
+		bool(d.get("visible_only", false)),
+		out,
+	)
+	return {"request_id": str(d.get("request_id", "")), "elements": out}
+
+
+func _collect_controls(
+	node: Node, name_contains: String, class_filter: String, visible_only: bool, out: Array
+) -> void:
+	if node is Control:
+		var matches := true
+		if not name_contains.is_empty() and not String(node.name).to_lower().contains(name_contains):
+			matches = false
+		if matches and not class_filter.is_empty() and not node.is_class(class_filter):
+			matches = false
+		if matches and visible_only and not node.is_visible_in_tree():
+			matches = false
+		if matches:
+			out.append(_ui_element(node))
+	for child in node.get_children():
+		_collect_controls(child, name_contains, class_filter, visible_only, out)
+
+
+func _ui_element(control: Control) -> Dictionary:
+	var rect := control.get_global_rect()
+	var element := {
+		"path": String(control.get_path()),
+		"name": String(control.name),
+		"node_class": control.get_class(),
+		"visible": control.is_visible_in_tree(),
+		"rect": {"x": rect.position.x, "y": rect.position.y, "w": rect.size.x, "h": rect.size.y},
+	}
+	if "text" in control:  # Button / Label / LineEdit / …
+		element["text"] = str(control.text)
+	return element
+
+
+# --- input recording (issue #68) -------------------------------------------
+
+const _RECORD_CAP := 2000  # bound the buffer so a long recording can't grow unbounded
+
+var _recording := false
+var _record_motion := false
+var _recorded: Array = []
+
+
+## Capture input the running game receives (in the play_input_sequence event format) so it
+## can be replayed for regression. Runs only while recording is active.
+func _input(event: InputEvent) -> void:
+	if not _recording:
+		return
+	var rec := _serialize_event(event)
+	if not rec.is_empty() and _recorded.size() < _RECORD_CAP:
+		_recorded.append(rec)
+
+
+func _record_start(d: Dictionary) -> void:
+	_record_motion = bool(d.get("include_motion", false))
+	_recorded = []
+	_recording = true
+
+
+func _record_stop() -> void:
+	_recording = false
+	EngineDebugger.send_message("godot_mcp:recorded_input", [{"events": _recorded}])
+
+
+## Serialize an InputEvent into the {type, …} shape play_input_sequence replays, or {} to
+## skip (unhandled event kinds, motion when not requested, unmapped buttons/keys).
+func _serialize_event(event: InputEvent) -> Dictionary:
+	if event is InputEventKey:
+		var key := OS.get_keycode_string(event.keycode)
+		if key.is_empty():
+			return {}
+		return {
+			"type": "key", "key": key, "pressed": event.pressed,
+			"shift": event.shift_pressed, "ctrl": event.ctrl_pressed,
+			"alt": event.alt_pressed, "meta": event.meta_pressed,
+		}
+	if event is InputEventMouseButton:
+		var button := _button_name(event.button_index)
+		if button.is_empty():
+			return {}
+		return {
+			"type": "mouse", "x": event.position.x, "y": event.position.y,
+			"button": button, "pressed": event.pressed,
+		}
+	if event is InputEventMouseMotion:
+		if not _record_motion:
+			return {}
+		return {
+			"type": "mouse", "x": event.position.x, "y": event.position.y,
+			"relative_x": event.relative.x, "relative_y": event.relative.y,
+		}
+	return {}
+
+
+## Reverse of _MOUSE_BUTTONS: button index → name, or "" if not a recognized button.
+func _button_name(index: int) -> String:
+	for name in _MOUSE_BUTTONS:
+		if _MOUSE_BUTTONS[name] == index:
+			return name
+	return ""
+
+
+## Minimal JSON-safe conversion for monitored property values (common Godot types).
+func _json_safe(value: Variant) -> Variant:
+	match typeof(value):
+		TYPE_VECTOR2, TYPE_VECTOR2I:
+			return {"x": value.x, "y": value.y}
+		TYPE_VECTOR3, TYPE_VECTOR3I:
+			return {"x": value.x, "y": value.y, "z": value.z}
+		TYPE_COLOR:
+			return {"r": value.r, "g": value.g, "b": value.b, "a": value.a}
+		TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+			return value
+		_:
+			return str(value)
