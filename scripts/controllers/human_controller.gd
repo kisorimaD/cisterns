@@ -8,18 +8,23 @@ signal target_preview_changed(
 	gold_income: int,
 	valid: bool
 )
-
-const PLAYER_ID := 0
+signal controlled_player_changed(player_id: int)
+signal debug_full_visibility_changed(enabled: bool)
 
 @onready var _game_state: GameState = %GameState
 @onready var _command_gateway: CommandGateway = %CommandGateway
 @onready var _map: Node2D = %Map
 
 var _selected_unit_id := -1
-var _next_sequence_number := 0
+var _controlled_player_id := GameState.PLAYER_ID
+var _debug_full_visibility := false
+var _next_sequence_by_player: Dictionary[int, int] = {0: 0, 1: 0}
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		_handle_debug_key(event as InputEventKey)
+		return
 	if event is InputEventMouseMotion:
 		if _selected_unit_id != -1:
 			_emit_target_preview((event as InputEventMouseMotion).position)
@@ -34,7 +39,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _game_state.is_position_inside_map(map_position):
 		return
 
-	var clicked_unit_id: int = _game_state.get_player_unit_at_position(PLAYER_ID, map_position)
+	var clicked_unit_id: int = _game_state.get_player_unit_at_position(
+		_controlled_player_id,
+		map_position
+	)
 	if clicked_unit_id != -1:
 		_select_unit(clicked_unit_id)
 		_emit_target_preview(mouse_event.position)
@@ -44,12 +52,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var command: GameCommand = GameCommand.move_unit(
-		PLAYER_ID,
+		_controlled_player_id,
 		_selected_unit_id,
 		map_position,
-		_next_sequence_number
+		_next_sequence_by_player[_controlled_player_id]
 	)
-	_next_sequence_number += 1
+	_next_sequence_by_player[_controlled_player_id] += 1
 	_command_gateway.submit(command)
 	_emit_target_preview(mouse_event.position)
 	get_viewport().set_input_as_handled()
@@ -79,3 +87,19 @@ func _emit_target_preview(screen_position: Vector2) -> void:
 		income.gold_income,
 		valid
 	)
+
+
+func _handle_debug_key(event: InputEventKey) -> void:
+	if not event.pressed or event.echo:
+		return
+	match event.keycode:
+		KEY_F1:
+			_debug_full_visibility = not _debug_full_visibility
+			debug_full_visibility_changed.emit(_debug_full_visibility)
+			get_viewport().set_input_as_handled()
+		KEY_F2:
+			_controlled_player_id = (_controlled_player_id + 1) % GameState.PLAYER_COUNT
+			_selected_unit_id = -1
+			selected_unit_changed.emit(-1)
+			controlled_player_changed.emit(_controlled_player_id)
+			get_viewport().set_input_as_handled()

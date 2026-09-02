@@ -11,6 +11,7 @@ signal unit_moved(
 signal resources_changed(player_id: int, water: int, gold: int)
 signal gathering_result(unit_id: int, resource_type: int, amount: int)
 signal unit_gathering_changed(unit_id: int, resource_type: int)
+signal unit_visibility_changed(player_id: int, unit_id: int, visible: bool)
 signal command_rejected(player_id: int, command_type: int, reason: StringName)
 
 const MAP_SIZE := Vector2(960.0, 672.0)
@@ -19,28 +20,30 @@ const UNIT_MOVE_SPEED := 96.0
 const UNIT_SELECTION_RADIUS := 22.0
 const GATHERING_INTERVAL_TICKS := 8
 const PLAYER_ID := 0
-const INITIAL_UNITS: Dictionary[int, Vector2] = {
-	1: Vector2(120.0, 120.0),
-	2: Vector2(120.0, 336.0),
-	3: Vector2(120.0, 552.0),
-}
+const PLAYER_COUNT := 2
 
 var current_tick := 0
 var units: Dictionary[int, UnitState] = {}
 var players: Dictionary[int, PlayerState] = {}
+var debug_full_visibility := false
 
 @onready var _map: GameMap = %Map
 
 var _tick_accumulator := 0.0
 var _pending_commands: Array[GameCommand] = []
-var _expected_sequence_by_player: Dictionary[int, int] = {PLAYER_ID: 0}
+var _expected_sequence_by_player: Dictionary[int, int] = {}
 
 
 func _ready() -> void:
-	players[PLAYER_ID] = PlayerState.new(PLAYER_ID)
-	for unit_id: int in INITIAL_UNITS:
-		units[unit_id] = UnitState.new(unit_id, PLAYER_ID, INITIAL_UNITS[unit_id])
-		players[PLAYER_ID].active_unit_ids.append(unit_id)
+	for player_id: int in PLAYER_COUNT:
+		players[player_id] = PlayerState.new(player_id)
+		_expected_sequence_by_player[player_id] = 0
+	_add_unit(1, 0, Vector2(120.0, 120.0))
+	_add_unit(2, 0, Vector2(120.0, 336.0))
+	_add_unit(3, 0, Vector2(120.0, 552.0))
+	_add_unit(101, 1, Vector2(840.0, 120.0))
+	_add_unit(102, 1, Vector2(840.0, 336.0))
+	_add_unit(103, 1, Vector2(840.0, 552.0))
 
 
 func _process(delta: float) -> void:
@@ -74,6 +77,26 @@ func get_unit_position(unit_id: int) -> Vector2:
 
 func get_player_state(player_id: int) -> PlayerState:
 	return players.get(player_id)
+
+
+func is_unit_visible_to(unit_id: int, perspective_player_id: int) -> bool:
+	var unit: UnitState = units.get(unit_id)
+	if unit == null or not unit.alive or not players.has(perspective_player_id):
+		return false
+	return unit.owner_id == perspective_player_id or debug_full_visibility
+
+
+func set_debug_full_visibility(enabled: bool) -> void:
+	if debug_full_visibility == enabled:
+		return
+	debug_full_visibility = enabled
+	for player_id: int in players:
+		for unit_id: int in units:
+			unit_visibility_changed.emit(
+				player_id,
+				unit_id,
+				is_unit_visible_to(unit_id, player_id)
+			)
 
 
 func get_income_preview_for_unit(unit_id: int, map_position: Vector2) -> ResourceSample:
@@ -117,7 +140,7 @@ func _accept_pending_commands() -> void:
 
 
 func _validate_and_apply(command: GameCommand) -> void:
-	if command.player_id != PLAYER_ID:
+	if not players.has(command.player_id):
 		_reject(command, &"unknown_player")
 		return
 	var expected_sequence: int = _expected_sequence_by_player[command.player_id]
@@ -216,6 +239,11 @@ func _count_upstream_gatherers(sample: ResourceSample, excluded_unit_id: int) ->
 		):
 			count += 1
 	return count
+
+
+func _add_unit(unit_id: int, owner_id: int, initial_position: Vector2) -> void:
+	units[unit_id] = UnitState.new(unit_id, owner_id, initial_position)
+	players[owner_id].active_unit_ids.append(unit_id)
 
 
 func _reject(command: GameCommand, reason: StringName) -> void:

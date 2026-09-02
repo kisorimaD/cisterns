@@ -6,7 +6,7 @@
 offset_left = 640.0
 offset_top = 44.0
 offset_right = 980.0
-offset_bottom = 154.0
+offset_bottom = 178.0
 mouse_filter = 2
 script = ExtResource("1_hud")
 
@@ -35,3 +35,8 @@ text = "Выберите цистерну"
 unique_name_in_owner = true
 mouse_filter = 2
 text = "Доход в точке появится здесь"
+
+[node name="DebugLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+mouse_filter = 2
+text = "F1 обзор: выкл | F2 сторона: 0"

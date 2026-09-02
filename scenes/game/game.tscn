@@ -41,6 +41,24 @@ map_position = Vector2(120, 336)
 unit_id = 3
 map_position = Vector2(120, 552)
 
+[node name="EnemyUnit1" parent="World/UnitViews" instance=ExtResource("2_unit")]
+visible = false
+unit_id = 101
+map_position = Vector2(840, 120)
+team_color = Color(0.94, 0.31, 0.27, 1)
+
+[node name="EnemyUnit2" parent="World/UnitViews" instance=ExtResource("2_unit")]
+visible = false
+unit_id = 102
+map_position = Vector2(840, 336)
+team_color = Color(0.94, 0.31, 0.27, 1)
+
+[node name="EnemyUnit3" parent="World/UnitViews" instance=ExtResource("2_unit")]
+visible = false
+unit_id = 103
+map_position = Vector2(840, 552)
+team_color = Color(0.94, 0.31, 0.27, 1)
+
 [node name="TelegraphViews" type="Node2D" parent="World" unique_id=826074609]
 
 [node name="RevealViews" type="Node2D" parent="World" unique_id=1087883500]
@@ -66,7 +84,12 @@ position = Vector2(512, 368)
 [connection signal="resources_changed" from="Simulation/GameState" to="UI/HUD" method="on_resources_changed"]
 [connection signal="tick_advanced" from="Simulation/GameState" to="UI/HUD" method="on_tick_advanced"]
 [connection signal="unit_gathering_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
+[connection signal="unit_visibility_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_visibility_changed"]
 [connection signal="command_submitted" from="Simulation/CommandGateway" to="Simulation/GameState" method="queue_command"]
+[connection signal="controlled_player_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="set_perspective"]
+[connection signal="controlled_player_changed" from="Controllers/HumanController" to="UI/HUD" method="on_controlled_player_changed"]
+[connection signal="debug_full_visibility_changed" from="Controllers/HumanController" to="Simulation/GameState" method="set_debug_full_visibility"]
+[connection signal="debug_full_visibility_changed" from="Controllers/HumanController" to="UI/HUD" method="on_debug_full_visibility_changed"]
 [connection signal="selected_unit_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_selected_unit_changed"]
 [connection signal="selected_unit_changed" from="Controllers/HumanController" to="UI/HUD" method="on_selected_unit_changed"]
 [connection signal="target_preview_changed" from="Controllers/HumanController" to="UI/HUD" method="on_target_preview_changed"]
