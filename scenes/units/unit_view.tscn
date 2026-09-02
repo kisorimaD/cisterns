@@ -15,7 +15,9 @@ points = PackedVector2Array(-18, 0, -12.728, -12.728, 0, -18, 12.728, -12.728, 1
 width = 2.0
 default_color = Color(1, 0.86, 0.25, 1)
 
-[node name="GatheringIndicator" type="Node2D" parent="."]
+[node name="GatheringIndicator" type="Polygon2D" parent="."]
 visible = false
+polygon = PackedVector2Array(-5, -20, 5, -20, 7, -14, 0, -9, -7, -14)
+color = Color(0.976471, 0.807843, 0.25098, 1)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]

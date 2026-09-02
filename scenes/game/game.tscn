@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://c4qsryw57h4t2"]
+[gd_scene load_steps=8 format=3 uid="uid://c4qsryw57h4t2"]
 
 [ext_resource type="PackedScene" path="res://scenes/map/map.tscn" id="1_map"]
 [ext_resource type="PackedScene" path="res://scenes/units/unit_view.tscn" id="2_unit"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://c2gaxx2rv8txt" path="res://scripts/commands/command_gateway.gd" id="4_gateway"]
 [ext_resource type="Script" uid="uid://b7oq1hhjgtij5" path="res://scripts/controllers/human_controller.gd" id="5_controller"]
 [ext_resource type="Script" uid="uid://djuf6fdlgc6x4" path="res://scripts/presentation/world_presenter.gd" id="6_presenter"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="7_hud"]
 
 [node name="Game" type="Node" unique_id=1934851739]
 
@@ -59,6 +60,13 @@ position = Vector2(512, 368)
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=767396074]
 
+[node name="HUD" parent="UI" instance=ExtResource("7_hud")]
+
 [connection signal="unit_moved" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_moved"]
+[connection signal="resources_changed" from="Simulation/GameState" to="UI/HUD" method="on_resources_changed"]
+[connection signal="tick_advanced" from="Simulation/GameState" to="UI/HUD" method="on_tick_advanced"]
+[connection signal="unit_gathering_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
 [connection signal="command_submitted" from="Simulation/CommandGateway" to="Simulation/GameState" method="queue_command"]
 [connection signal="selected_unit_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_selected_unit_changed"]
+[connection signal="selected_unit_changed" from="Controllers/HumanController" to="UI/HUD" method="on_selected_unit_changed"]
+[connection signal="target_preview_changed" from="Controllers/HumanController" to="UI/HUD" method="on_target_preview_changed"]

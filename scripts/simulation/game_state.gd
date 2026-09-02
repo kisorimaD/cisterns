@@ -8,12 +8,16 @@ signal unit_moved(
 	to: Vector2,
 	duration_seconds: float
 )
+signal resources_changed(player_id: int, water: int, gold: int)
+signal gathering_result(unit_id: int, resource_type: int, amount: int)
+signal unit_gathering_changed(unit_id: int, resource_type: int)
 signal command_rejected(player_id: int, command_type: int, reason: StringName)
 
 const MAP_SIZE := Vector2(960.0, 672.0)
 const SIMULATION_TICK_SECONDS := 0.25
 const UNIT_MOVE_SPEED := 96.0
 const UNIT_SELECTION_RADIUS := 22.0
+const GATHERING_INTERVAL_TICKS := 8
 const PLAYER_ID := 0
 const INITIAL_UNITS: Dictionary[int, Vector2] = {
 	1: Vector2(120.0, 120.0),
@@ -23,6 +27,9 @@ const INITIAL_UNITS: Dictionary[int, Vector2] = {
 
 var current_tick := 0
 var units: Dictionary[int, UnitState] = {}
+var players: Dictionary[int, PlayerState] = {}
+
+@onready var _map: GameMap = %Map
 
 var _tick_accumulator := 0.0
 var _pending_commands: Array[GameCommand] = []
@@ -30,8 +37,10 @@ var _expected_sequence_by_player: Dictionary[int, int] = {PLAYER_ID: 0}
 
 
 func _ready() -> void:
+	players[PLAYER_ID] = PlayerState.new(PLAYER_ID)
 	for unit_id: int in INITIAL_UNITS:
 		units[unit_id] = UnitState.new(unit_id, PLAYER_ID, INITIAL_UNITS[unit_id])
+		players[PLAYER_ID].active_unit_ids.append(unit_id)
 
 
 func _process(delta: float) -> void:
@@ -63,6 +72,29 @@ func get_unit_position(unit_id: int) -> Vector2:
 	return unit.position if unit != null else Vector2(-1.0, -1.0)
 
 
+func get_player_state(player_id: int) -> PlayerState:
+	return players.get(player_id)
+
+
+func get_income_preview_for_unit(unit_id: int, map_position: Vector2) -> ResourceSample:
+	if not units.has(unit_id):
+		return ResourceSample.new()
+	var sample: ResourceSample = _map.sample_resources(map_position)
+	if sample.water_income > 0:
+		sample.water_income = maxi(
+			0,
+			sample.water_income - _count_upstream_gatherers(sample, unit_id)
+		)
+	return sample
+
+
+func get_unit_income_preview(unit_id: int) -> ResourceSample:
+	var unit: UnitState = units.get(unit_id)
+	if unit == null or unit.is_moving:
+		return ResourceSample.new()
+	return get_income_preview_for_unit(unit_id, unit.position)
+
+
 func is_position_inside_map(map_position: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, MAP_SIZE).has_point(map_position)
 
@@ -70,7 +102,10 @@ func is_position_inside_map(map_position: Vector2) -> bool:
 func _advance_tick() -> void:
 	_accept_pending_commands()
 	_advance_units()
+	_update_gathering_states()
 	current_tick += 1
+	if current_tick % GATHERING_INTERVAL_TICKS == 0:
+		_gather_resources()
 	tick_advanced.emit(current_tick)
 
 
@@ -111,7 +146,9 @@ func _apply_move_command(command: GameCommand) -> void:
 		return
 	unit.movement_target = command.target
 	unit.is_moving = not unit.position.is_equal_approx(command.target)
-	unit.gathering_resource_type = -1
+	if unit.gathering_resource_type != UnitState.ResourceType.NONE:
+		unit.gathering_resource_type = UnitState.ResourceType.NONE
+		unit_gathering_changed.emit(unit.id, unit.gathering_resource_type)
 
 
 func _advance_units() -> void:
@@ -126,6 +163,59 @@ func _advance_units() -> void:
 			unit.position = unit.movement_target
 			unit.is_moving = false
 		unit_moved.emit(unit.id, from, unit.position, SIMULATION_TICK_SECONDS)
+
+
+func _update_gathering_states() -> void:
+	for unit: UnitState in units.values():
+		var previous_type: UnitState.ResourceType = unit.gathering_resource_type
+		if not unit.alive or unit.is_moving:
+			unit.gathering_resource_type = UnitState.ResourceType.NONE
+			if unit.gathering_resource_type != previous_type:
+				unit_gathering_changed.emit(unit.id, unit.gathering_resource_type)
+			continue
+		var sample: ResourceSample = _map.sample_resources(unit.position)
+		if sample.water_income > 0:
+			unit.gathering_resource_type = UnitState.ResourceType.WATER
+		elif sample.gold_income > 0:
+			unit.gathering_resource_type = UnitState.ResourceType.GOLD
+		else:
+			unit.gathering_resource_type = UnitState.ResourceType.NONE
+		if unit.gathering_resource_type != previous_type:
+			unit_gathering_changed.emit(unit.id, unit.gathering_resource_type)
+
+
+func _gather_resources() -> void:
+	for unit: UnitState in units.values():
+		if not unit.alive or unit.gathering_resource_type == UnitState.ResourceType.NONE:
+			continue
+		var income: ResourceSample = get_unit_income_preview(unit.id)
+		var amount: int = 0
+		if unit.gathering_resource_type == UnitState.ResourceType.WATER:
+			amount = income.water_income
+			players[unit.owner_id].water += amount
+		else:
+			amount = income.gold_income
+			players[unit.owner_id].gold += amount
+		gathering_result.emit(unit.id, unit.gathering_resource_type, amount)
+		var player: PlayerState = players[unit.owner_id]
+		resources_changed.emit(player.id, player.water, player.gold)
+
+
+func _count_upstream_gatherers(sample: ResourceSample, excluded_unit_id: int) -> int:
+	if sample.river_id == -1:
+		return 0
+	var count: int = 0
+	for unit: UnitState in units.values():
+		if unit.id == excluded_unit_id or not unit.alive or unit.is_moving:
+			continue
+		var other_sample: ResourceSample = _map.sample_resources(unit.position)
+		if (
+			other_sample.water_income > 0
+			and other_sample.river_id == sample.river_id
+			and other_sample.flow_offset < sample.flow_offset
+		):
+			count += 1
+	return count
 
 
 func _reject(command: GameCommand, reason: StringName) -> void:

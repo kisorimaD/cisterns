@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/hud.gd" id="1_hud"]
+
+[node name="HUD" type="PanelContainer"]
+offset_left = 640.0
+offset_top = 44.0
+offset_right = 980.0
+offset_bottom = 154.0
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="ResourceLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+mouse_filter = 2
+text = "Запасы: вода 0 | золото 0"
+
+[node name="SelectedIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+mouse_filter = 2
+text = "Выберите цистерну"
+
+[node name="TargetIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+mouse_filter = 2
+text = "Доход в точке появится здесь"

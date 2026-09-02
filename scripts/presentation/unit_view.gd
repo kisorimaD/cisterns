@@ -35,6 +35,10 @@ func set_selected(is_selected: bool) -> void:
 	$SelectionRing.visible = is_selected
 
 
+func set_gathering(is_gathering: bool) -> void:
+	$GatheringIndicator.visible = is_gathering
+
+
 func _draw() -> void:
 	# Temporary cistern silhouette: chassis, tracks and a round water tank.
 	draw_rect(Rect2(-Vector2(16.0, 10.0), Vector2(32.0, 20.0)), Color("#17262b"), true)

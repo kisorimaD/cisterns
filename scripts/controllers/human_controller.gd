@@ -2,6 +2,12 @@ class_name HumanController
 extends Node
 
 signal selected_unit_changed(unit_id: int)
+signal target_preview_changed(
+	map_position: Vector2,
+	water_income: int,
+	gold_income: int,
+	valid: bool
+)
 
 const PLAYER_ID := 0
 
@@ -14,6 +20,10 @@ var _next_sequence_number := 0
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		if _selected_unit_id != -1:
+			_emit_target_preview((event as InputEventMouseMotion).position)
+		return
 	if not event is InputEventMouseButton:
 		return
 	var mouse_event := event as InputEventMouseButton
@@ -27,6 +37,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var clicked_unit_id: int = _game_state.get_player_unit_at_position(PLAYER_ID, map_position)
 	if clicked_unit_id != -1:
 		_select_unit(clicked_unit_id)
+		_emit_target_preview(mouse_event.position)
 		get_viewport().set_input_as_handled()
 		return
 	if _selected_unit_id == -1:
@@ -40,6 +51,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	)
 	_next_sequence_number += 1
 	_command_gateway.submit(command)
+	_emit_target_preview(mouse_event.position)
 	get_viewport().set_input_as_handled()
 
 
@@ -53,3 +65,17 @@ func _select_unit(unit_id: int) -> void:
 		return
 	_selected_unit_id = unit_id
 	selected_unit_changed.emit(unit_id)
+
+
+func _emit_target_preview(screen_position: Vector2) -> void:
+	var map_position: Vector2 = _screen_to_map_position(screen_position)
+	var valid: bool = _game_state.is_position_inside_map(map_position)
+	var income: ResourceSample = ResourceSample.new()
+	if valid:
+		income = _game_state.get_income_preview_for_unit(_selected_unit_id, map_position)
+	target_preview_changed.emit(
+		map_position,
+		income.water_income,
+		income.gold_income,
+		valid
+	)

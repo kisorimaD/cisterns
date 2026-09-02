@@ -30,3 +30,9 @@ func on_selected_unit_changed(unit_id: int) -> void:
 	for current_unit_id: int in _views_by_unit_id:
 		var view: UnitView = _views_by_unit_id[current_unit_id]
 		view.set_selected(current_unit_id == unit_id)
+
+
+func on_unit_gathering_changed(unit_id: int, resource_type: int) -> void:
+	var view: UnitView = _views_by_unit_id.get(unit_id)
+	if view != null:
+		view.set_gathering(resource_type != UnitState.ResourceType.NONE)

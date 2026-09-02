@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/map/game_map.gd" id="1_map"]
+[ext_resource type="Script" path="res://scripts/map/river_data.gd" id="2_river"]
+[ext_resource type="PackedScene" path="res://scenes/map/resource_field.tscn" id="3_field"]
 
 [node name="Map" type="Node2D"]
 script = ExtResource("1_map")
@@ -13,7 +15,25 @@ script = ExtResource("1_map")
 
 [node name="Rivers" type="Node2D" parent="."]
 
+[node name="StraightRiver" type="Node2D" parent="Rivers"]
+script = ExtResource("2_river")
+river_id = 0
+start_point = Vector2(170, 185)
+end_point = Vector2(790, 185)
+half_width = 42.0
+
+[node name="EdgeDiagonalRiver" type="Node2D" parent="Rivers"]
+script = ExtResource("2_river")
+river_id = 1
+start_point = Vector2(758, 412)
+end_point = Vector2(928, 628)
+half_width = 40.0
+river_color = Color(0.105882, 0.431373, 0.67451, 1)
+
 [node name="ResourceFields" type="Node2D" parent="."]
+
+[node name="GoldDeposit" parent="ResourceFields" instance=ExtResource("3_field")]
+position = Vector2(530, 470)
 
 [node name="ResourceMarkers" type="Node2D" parent="."]
 
