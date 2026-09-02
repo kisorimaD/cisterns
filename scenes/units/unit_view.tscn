@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/unit_view.gd" id="1_unit"]
+
+[node name="UnitView" type="Node2D"]
+script = ExtResource("1_unit")
+
+[node name="Body" type="Node2D" parent="."]
+
+[node name="Tank" type="Node2D" parent="."]
+
+[node name="SelectionRing" type="Line2D" parent="."]
+visible = false
+points = PackedVector2Array(-18, 0, -12.728, -12.728, 0, -18, 12.728, -12.728, 18, 0, 12.728, 12.728, 0, 18, -12.728, 12.728, -18, 0)
+width = 2.0
+default_color = Color(1, 0.86, 0.25, 1)
+
+[node name="GatheringIndicator" type="Node2D" parent="."]
+visible = false
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]

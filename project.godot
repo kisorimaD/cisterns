@@ -17,6 +17,14 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="Cisterns"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+run/main_scene="res://scenes/game/game.tscn"
+
+[display]
+
+window/size/viewport_width=1024
+window/size/viewport_height=736
+window/size/window_width_override=1024
+window/size/window_height_override=736
 
 [editor_plugins]
 

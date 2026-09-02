@@ -1,0 +1,64 @@
+[gd_scene format=3 uid="uid://c4qsryw57h4t2"]
+
+[ext_resource type="PackedScene" path="res://scenes/map/map.tscn" id="1_map"]
+[ext_resource type="PackedScene" path="res://scenes/units/unit_view.tscn" id="2_unit"]
+[ext_resource type="Script" uid="uid://bnowa8h46wl2m" path="res://scripts/simulation/game_state.gd" id="3_state"]
+[ext_resource type="Script" uid="uid://c2gaxx2rv8txt" path="res://scripts/commands/command_gateway.gd" id="4_gateway"]
+[ext_resource type="Script" uid="uid://b7oq1hhjgtij5" path="res://scripts/controllers/human_controller.gd" id="5_controller"]
+[ext_resource type="Script" uid="uid://djuf6fdlgc6x4" path="res://scripts/presentation/world_presenter.gd" id="6_presenter"]
+
+[node name="Game" type="Node" unique_id=1934851739]
+
+[node name="Simulation" type="Node" parent="." unique_id=1897893048]
+
+[node name="GameState" type="Node" parent="Simulation" unique_id=1224230611]
+unique_name_in_owner = true
+script = ExtResource("3_state")
+
+[node name="CommandGateway" type="Node" parent="Simulation" unique_id=1580977484]
+unique_name_in_owner = true
+script = ExtResource("4_gateway")
+
+[node name="World" type="Node2D" parent="." unique_id=1819472980]
+position = Vector2(32, 32)
+
+[node name="Map" parent="World" unique_id=118001531 instance=ExtResource("1_map")]
+unique_name_in_owner = true
+
+[node name="UnitViews" type="Node2D" parent="World" unique_id=127335591]
+unique_name_in_owner = true
+
+[node name="Unit1" parent="World/UnitViews" unique_id=1753333462 instance=ExtResource("2_unit")]
+unit_id = 1
+map_position = Vector2(120, 120)
+
+[node name="Unit2" parent="World/UnitViews" unique_id=1120073104 instance=ExtResource("2_unit")]
+unit_id = 2
+map_position = Vector2(120, 336)
+
+[node name="Unit3" parent="World/UnitViews" unique_id=562542962 instance=ExtResource("2_unit")]
+unit_id = 3
+map_position = Vector2(120, 552)
+
+[node name="TelegraphViews" type="Node2D" parent="World" unique_id=826074609]
+
+[node name="RevealViews" type="Node2D" parent="World" unique_id=1087883500]
+
+[node name="Effects" type="Node2D" parent="World" unique_id=1158327350]
+
+[node name="WorldPresenter" type="Node" parent="World" unique_id=67148642]
+script = ExtResource("6_presenter")
+
+[node name="Controllers" type="Node" parent="." unique_id=925579935]
+
+[node name="HumanController" type="Node" parent="Controllers" unique_id=71330644]
+script = ExtResource("5_controller")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=222119754]
+position = Vector2(512, 368)
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=767396074]
+
+[connection signal="unit_moved" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_moved"]
+[connection signal="command_submitted" from="Simulation/CommandGateway" to="Simulation/GameState" method="queue_command"]
+[connection signal="selected_unit_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_selected_unit_changed"]
