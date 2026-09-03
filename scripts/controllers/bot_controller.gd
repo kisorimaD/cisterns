@@ -4,6 +4,7 @@ extends Node
 const MOVE_DECISION_INTERVAL_TICKS: int = 20
 const BOMB_DECISION_INTERVAL_TICKS: int = 8
 const MISSILE_DECISION_INTERVAL_TICKS: int = 12
+const REPLACEMENT_DECISION_INTERVAL_TICKS: int = 8
 const ECONOMY_SAMPLE_STEP: int = 48
 const ECONOMY_SAMPLE_MARGIN: float = 24.0
 const TARGET_SEPARATION: float = 72.0
@@ -18,6 +19,7 @@ var _paused_for_debug_control: bool = false
 var _next_move_decision_tick: int = 2
 var _next_bomb_decision_tick: int = 8
 var _next_missile_decision_tick: int = 16
+var _next_replacement_decision_tick: int = 6
 var _last_known_enemy_positions: Dictionary[int, Vector2] = {}
 var _game_state: GameState
 var _command_gateway: CommandGateway
@@ -33,6 +35,9 @@ func on_tick_advanced(tick: int) -> void:
 	if _paused_for_debug_control:
 		return
 	_remember_visible_enemies()
+	if tick >= _next_replacement_decision_tick:
+		_try_buy_replacement()
+		_next_replacement_decision_tick = tick + REPLACEMENT_DECISION_INTERVAL_TICKS
 	if tick >= _next_move_decision_tick:
 		_make_movement_decisions()
 		_next_move_decision_tick = tick + MOVE_DECISION_INTERVAL_TICKS
@@ -239,3 +244,33 @@ func _is_safe_from_friendly_units_for_radius(target: Vector2, damage_radius: flo
 		):
 			return false
 	return true
+
+
+func _try_buy_replacement() -> void:
+	var player: PlayerState = _game_state.get_player_state(bot_player_id)
+	if (
+		player == null
+		or player.active_unit_ids.is_empty()
+		or player.active_unit_ids.size() >= GameState.MAXIMUM_ACTIVE_UNITS
+		or player.gold < _game_state.get_next_replacement_cost(bot_player_id)
+	):
+		return
+	var candidates: Array[Vector2] = _game_state.get_replacement_spawn_candidates(bot_player_id)
+	if candidates.is_empty():
+		return
+	var start_index: int = _rng.randi_range(0, candidates.size() - 1)
+	for offset: int in candidates.size():
+		var target: Vector2 = candidates[(start_index + offset) % candidates.size()]
+		var blocked_by_own_unit := false
+		for unit_id: int in player.active_unit_ids:
+			var unit: UnitState = _game_state.units.get(unit_id)
+			if (
+				unit != null
+				and unit.alive
+				and unit.position.distance_to(target) < GameState.REPLACEMENT_CLEARANCE_RADIUS
+			):
+				blocked_by_own_unit = true
+				break
+		if not blocked_by_own_unit:
+			_command_gateway.submit(GameCommand.buy_replacement(bot_player_id, target))
+			return

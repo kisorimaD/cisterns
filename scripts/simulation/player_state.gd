@@ -5,6 +5,7 @@ var id: int
 var water := 0
 var gold := 0
 var active_unit_ids: Array[int] = []
+var replacements_bought := 0
 var bomb_cooldown_ticks := 0
 var missile_cooldown_ticks := 0
 

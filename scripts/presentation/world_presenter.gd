@@ -3,6 +3,8 @@ extends Node
 
 const STRIKE_VIEW_SCENE := preload("res://scenes/combat/strike_view.tscn")
 const REVEAL_ZONE_VIEW_SCENE := preload("res://scenes/combat/reveal_zone_view.tscn")
+const UNIT_VIEW_SCENE := preload("res://scenes/units/unit_view.tscn")
+const TEAM_COLORS: Array[Color] = [Color("#67d5ff"), Color("#ef4f45")]
 
 @export var perspective_player_id := 0
 
@@ -18,6 +20,8 @@ var _strike_preview: StrikeView
 
 
 func _ready() -> void:
+	_game_state.unit_spawned.connect(on_unit_spawned)
+	_game_state.match_ended.connect(on_match_ended)
 	for child: Node in _unit_views.get_children():
 		if child is UnitView:
 			var view: UnitView = child as UnitView
@@ -25,6 +29,29 @@ func _ready() -> void:
 			view.snap_to_position(_game_state.get_unit_position(view.unit_id))
 	_refresh_visibility()
 	_refresh_upstream_indicators()
+
+
+func on_unit_spawned(unit_id: int, owner_id: int, map_position: Vector2) -> void:
+	var view: UnitView = UNIT_VIEW_SCENE.instantiate() as UnitView
+	view.unit_id = unit_id
+	view.map_position = map_position
+	view.team_color = TEAM_COLORS[owner_id]
+	_unit_views.add_child(view)
+	_views_by_unit_id[unit_id] = view
+	view.snap_to_position(map_position)
+	view.visible = _game_state.is_unit_visible_to(unit_id, perspective_player_id)
+	_refresh_upstream_indicators()
+
+
+func on_match_ended(_winner_player_id: int) -> void:
+	if _strike_preview != null:
+		_strike_preview.visible = false
+	for view: StrikeView in _strike_views.values():
+		view.queue_free()
+	_strike_views.clear()
+	for view: RevealZoneView in _reveal_zone_views.values():
+		view.queue_free()
+	_reveal_zone_views.clear()
 
 
 func on_unit_moved(

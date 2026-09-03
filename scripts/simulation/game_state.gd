@@ -9,6 +9,7 @@ signal unit_moved(
 	duration_seconds: float
 )
 signal unit_destroyed(unit_id: int, position: Vector2)
+signal unit_spawned(unit_id: int, owner_id: int, position: Vector2)
 signal resources_changed(player_id: int, water: int, gold: int)
 signal gathering_result(unit_id: int, resource_type: int, amount: int)
 signal unit_gathering_changed(unit_id: int, resource_type: int)
@@ -18,6 +19,7 @@ signal strike_detonated(strike_id: int, position: Vector2)
 signal reveal_zone_created(zone_id: int)
 signal reveal_zone_removed(zone_id: int)
 signal command_rejected(player_id: int, command_type: int, reason: StringName)
+signal match_ended(winner_player_id: int)
 
 const MAP_SIZE := Vector2(960.0, 672.0)
 const SIMULATION_TICK_SECONDS := 0.25
@@ -39,6 +41,10 @@ const MISSILE_COOLDOWN_TICKS := 40
 const MISSILE_WARNING_TICKS := 28
 const MISSILE_DAMAGE_RADIUS := 96.0
 const MISSILE_REVEAL_RADIUS := 0.0
+const MAXIMUM_ACTIVE_UNITS := 3
+const BASE_REPLACEMENT_COST := 4
+const CHEAP_REPLACEMENT_COUNT := 2
+const REPLACEMENT_CLEARANCE_RADIUS := 44.0
 
 var current_tick := 0
 var units: Dictionary[int, UnitState] = {}
@@ -46,6 +52,8 @@ var players: Dictionary[int, PlayerState] = {}
 var strikes: Dictionary[int, StrikeState] = {}
 var reveal_zones: Dictionary[int, RevealZoneState] = {}
 var debug_full_visibility := false
+var match_finished := false
+var winner_player_id := -1
 
 @onready var _map: GameMap = %Map
 
@@ -54,6 +62,7 @@ var _pending_commands: Array[GameCommand] = []
 var _expected_sequence_by_player: Dictionary[int, int] = {}
 var _next_strike_id := 1
 var _next_reveal_zone_id := 1
+var _next_unit_id_by_player: Dictionary[int, int] = {0: 4, 1: 104}
 var _visibility_cache: Dictionary[String, bool] = {}
 
 
@@ -72,13 +81,20 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if match_finished:
+		return
 	_tick_accumulator += delta
 	while _tick_accumulator >= SIMULATION_TICK_SECONDS:
 		_tick_accumulator -= SIMULATION_TICK_SECONDS
 		_advance_tick()
+		if match_finished:
+			break
 
 
 func queue_command(command: GameCommand) -> void:
+	if match_finished:
+		_reject(command, &"match_finished")
+		return
 	_pending_commands.append(command)
 
 
@@ -110,6 +126,21 @@ func get_strike(strike_id: int) -> StrikeState:
 
 func get_reveal_zone(zone_id: int) -> RevealZoneState:
 	return reveal_zones.get(zone_id)
+
+
+func get_next_replacement_cost(player_id: int) -> int:
+	var player: PlayerState = players.get(player_id)
+	if player == null:
+		return 0
+	var expensive_purchase_index: int = maxi(
+		0,
+		player.replacements_bought - CHEAP_REPLACEMENT_COUNT + 1
+	)
+	return BASE_REPLACEMENT_COST * (1 << expensive_purchase_index)
+
+
+func get_replacement_spawn_candidates(player_id: int) -> Array[Vector2]:
+	return _map.get_spawn_candidates(player_id)
 
 
 func is_unit_visible_to(unit_id: int, perspective_player_id: int) -> bool:
@@ -181,6 +212,10 @@ func _advance_tick() -> void:
 	if current_tick % GATHERING_INTERVAL_TICKS == 0:
 		_gather_resources()
 	_resolve_due_strikes()
+	if match_finished:
+		_refresh_visibility()
+		tick_advanced.emit(current_tick)
+		return
 	_expire_reveal_zones()
 	_advance_cooldowns()
 	_refresh_visibility()
@@ -195,6 +230,9 @@ func _accept_pending_commands() -> void:
 
 
 func _validate_and_apply(command: GameCommand) -> void:
+	if match_finished:
+		_reject(command, &"match_finished")
+		return
 	if not players.has(command.player_id):
 		_reject(command, &"unknown_player")
 		return
@@ -211,6 +249,8 @@ func _validate_and_apply(command: GameCommand) -> void:
 			_apply_bomb_command(command)
 		GameCommand.Type.LAUNCH_MISSILE:
 			_apply_missile_command(command)
+		GameCommand.Type.BUY_REPLACEMENT:
+			_apply_replacement_command(command)
 		_:
 			_reject(command, &"unsupported_command")
 
@@ -295,6 +335,37 @@ func _apply_missile_command(command: GameCommand) -> void:
 	_next_strike_id += 1
 	resources_changed.emit(player.id, player.water, player.gold)
 	strike_scheduled.emit(strike.id)
+
+
+func _apply_replacement_command(command: GameCommand) -> void:
+	var player: PlayerState = players.get(command.player_id)
+	if player == null or player.active_unit_ids.is_empty():
+		_reject(command, &"no_active_units")
+		return
+	if player.active_unit_ids.size() >= MAXIMUM_ACTIVE_UNITS:
+		_reject(command, &"maximum_units_reached")
+		return
+	if not is_position_inside_map(command.target):
+		_reject(command, &"target_outside_map")
+		return
+	if not _map.is_position_in_spawn_area(command.player_id, command.target):
+		_reject(command, &"outside_spawn_area")
+		return
+	if not _is_replacement_position_free(command.target):
+		_reject(command, &"spawn_position_blocked")
+		return
+	var replacement_cost: int = get_next_replacement_cost(command.player_id)
+	if player.gold < replacement_cost:
+		_reject(command, &"not_enough_gold")
+		return
+
+	var unit_id: int = _next_unit_id_by_player[command.player_id]
+	_next_unit_id_by_player[command.player_id] = unit_id + 1
+	player.gold -= replacement_cost
+	player.replacements_bought += 1
+	_add_unit(unit_id, command.player_id, command.target)
+	resources_changed.emit(player.id, player.water, player.gold)
+	unit_spawned.emit(unit_id, command.player_id, command.target)
 
 
 func _advance_units() -> void:
@@ -398,6 +469,7 @@ func _resolve_due_strikes() -> void:
 		unit.gathering_resource_type = UnitState.ResourceType.NONE
 		players[unit.owner_id].active_unit_ids.erase(unit_id)
 		unit_destroyed.emit(unit.id, unit.position)
+	_finish_match_if_needed()
 
 
 func _create_reveal_zone(strike: StrikeState) -> void:
@@ -459,6 +531,30 @@ func _visibility_key(player_id: int, unit_id: int) -> String:
 func _add_unit(unit_id: int, owner_id: int, initial_position: Vector2) -> void:
 	units[unit_id] = UnitState.new(unit_id, owner_id, initial_position)
 	players[owner_id].active_unit_ids.append(unit_id)
+
+
+func _is_replacement_position_free(map_position: Vector2) -> bool:
+	for unit: UnitState in units.values():
+		if unit.alive and unit.position.distance_to(map_position) < REPLACEMENT_CLEARANCE_RADIUS:
+			return false
+	return true
+
+
+func _finish_match_if_needed() -> void:
+	var eliminated_players: Array[int] = []
+	for player_id: int in players:
+		var player: PlayerState = players[player_id]
+		if player.active_unit_ids.is_empty():
+			eliminated_players.append(player_id)
+	if eliminated_players.is_empty():
+		return
+	match_finished = true
+	_pending_commands.clear()
+	if eliminated_players.size() == 1:
+		winner_player_id = (eliminated_players[0] + 1) % PLAYER_COUNT
+	else:
+		winner_player_id = -1
+	match_ended.emit(winner_player_id)
 
 
 func _reject(command: GameCommand, reason: StringName) -> void:

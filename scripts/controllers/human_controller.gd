@@ -25,6 +25,7 @@ enum InputMode {
 	UNIT_SELECTED,
 	AIMING_BOMB,
 	AIMING_MISSILE,
+	PLACING_REPLACEMENT,
 }
 
 @onready var _game_state: GameState = %GameState
@@ -50,6 +51,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_handle_debug_key(event as InputEventKey)
 		return
+	if _game_state.match_finished:
+		return
 	if event is InputEventMouseMotion:
 		var mouse_position: Vector2 = (event as InputEventMouseMotion).position
 		if _is_aiming_strike():
@@ -72,6 +75,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_input_mode(
 			InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL
 		)
+		get_viewport().set_input_as_handled()
+		return
+	if _input_mode == InputMode.PLACING_REPLACEMENT:
+		_command_gateway.submit(GameCommand.buy_replacement(_controlled_player_id, map_position))
+		_set_input_mode(InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL)
 		get_viewport().set_input_as_handled()
 		return
 
@@ -129,11 +137,16 @@ func on_unit_destroyed(unit_id: int, _position: Vector2) -> void:
 		return
 	_selected_unit_id = -1
 	selected_unit_changed.emit(-1)
-	_set_input_mode(InputMode.NORMAL)
+	_cancel_current_mode()
 
 
 func _handle_debug_key(event: InputEventKey) -> void:
 	if not event.pressed or event.echo:
+		return
+	if _game_state.match_finished:
+		if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+			get_tree().reload_current_scene()
+			get_viewport().set_input_as_handled()
 		return
 	match event.keycode:
 		KEY_B:
@@ -150,9 +163,17 @@ func _handle_debug_key(event: InputEventKey) -> void:
 				_set_input_mode(InputMode.AIMING_MISSILE)
 				_emit_strike_preview(get_viewport().get_mouse_position(), true)
 			get_viewport().set_input_as_handled()
+		KEY_R:
+			if _input_mode == InputMode.PLACING_REPLACEMENT:
+				_cancel_current_mode()
+			else:
+				if _is_aiming_strike():
+					_cancel_strike_aiming()
+				_set_input_mode(InputMode.PLACING_REPLACEMENT)
+			get_viewport().set_input_as_handled()
 		KEY_ESCAPE:
-			if _is_aiming_strike():
-				_cancel_strike_aiming()
+			if _is_aiming_strike() or _input_mode == InputMode.PLACING_REPLACEMENT:
+				_cancel_current_mode()
 				get_viewport().set_input_as_handled()
 		KEY_F1:
 			_debug_full_visibility = not _debug_full_visibility
@@ -162,7 +183,7 @@ func _handle_debug_key(event: InputEventKey) -> void:
 			_controlled_player_id = (_controlled_player_id + 1) % GameState.PLAYER_COUNT
 			_selected_unit_id = -1
 			selected_unit_changed.emit(-1)
-			_cancel_strike_aiming()
+			_cancel_current_mode()
 			controlled_player_changed.emit(_controlled_player_id)
 			get_viewport().set_input_as_handled()
 
@@ -186,6 +207,13 @@ func _cancel_strike_aiming() -> void:
 		false
 	)
 	_set_input_mode(InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL)
+
+
+func _cancel_current_mode() -> void:
+	if _is_aiming_strike():
+		_cancel_strike_aiming()
+	else:
+		_set_input_mode(InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL)
 
 
 func _emit_strike_preview(screen_position: Vector2, is_visible: bool) -> void:

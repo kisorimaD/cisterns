@@ -48,3 +48,14 @@ static func launch_missile(
 	command.player_id = command_player_id
 	command.target = command_target
 	return command
+
+
+static func buy_replacement(
+		command_player_id: int,
+		command_target: Vector2
+) -> GameCommand:
+	var command := GameCommand.new()
+	command.type = Type.BUY_REPLACEMENT
+	command.player_id = command_player_id
+	command.target = command_target
+	return command

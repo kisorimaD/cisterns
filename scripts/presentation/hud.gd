@@ -20,11 +20,18 @@ func _ready() -> void:
 	_refresh_selected_income()
 	_refresh_debug_label()
 	_refresh_strike_status()
+	_refresh_match_result()
 
 
 func on_resources_changed(player_id: int, water: int, gold: int) -> void:
 	if player_id == _perspective_player_id:
-		_resource_label.text = "Запасы: вода %d | золото %d" % [water, gold]
+		var player: PlayerState = _game_state.get_player_state(player_id)
+		_resource_label.text = "Запасы: вода %d | золото %d | юниты %d/%d" % [
+			water,
+			gold,
+			player.active_unit_ids.size(),
+			GameState.MAXIMUM_ACTIVE_UNITS,
+		]
 
 
 func on_selected_unit_changed(unit_id: int) -> void:
@@ -50,8 +57,10 @@ func on_target_preview_changed(
 
 
 func on_tick_advanced(_tick: int) -> void:
+	_refresh_resources()
 	_refresh_selected_income()
 	_refresh_strike_status()
+	_refresh_match_result()
 
 
 func on_controlled_player_changed(player_id: int) -> void:
@@ -73,8 +82,10 @@ func on_input_mode_changed(mode: int) -> void:
 		_mode_label.text = "Режим: выберите цель бомбы (Esc — отмена)"
 	elif mode == HumanController.InputMode.AIMING_MISSILE:
 		_mode_label.text = "Режим: выберите цель ракеты (Esc — отмена)"
+	elif mode == HumanController.InputMode.PLACING_REPLACEMENT:
+		_mode_label.text = "Режим: выберите точку в своей стартовой области"
 	else:
-		_mode_label.text = "Режим: движение | B — бомба | M — ракета"
+		_mode_label.text = "Режим: B — бомба | M — ракета | R — замена"
 
 
 func on_command_rejected(player_id: int, _command_type: int, reason: StringName) -> void:
@@ -129,4 +140,26 @@ func _refresh_strike_status() -> void:
 			player.missile_cooldown_ticks * GameState.SIMULATION_TICK_SECONDS
 		)
 		missile_status = "Ракета: перезарядка %.2f с" % missile_seconds
-	_bomb_label.text = "%s\n%s" % [bomb_status, missile_status]
+	var replacement_status: String
+	var replacement_cost: int = _game_state.get_next_replacement_cost(
+		_perspective_player_id
+	)
+	if player.active_unit_ids.is_empty():
+		replacement_status = "Замена: %d золота | недоступна" % replacement_cost
+	elif player.active_unit_ids.size() >= GameState.MAXIMUM_ACTIVE_UNITS:
+		replacement_status = "Замена: %d золота | полный состав" % replacement_cost
+	else:
+		replacement_status = "Замена: %d золота | готова" % replacement_cost
+	_bomb_label.text = "%s\n%s\n%s" % [bomb_status, missile_status, replacement_status]
+
+
+func _refresh_match_result() -> void:
+	if not _game_state.match_finished:
+		return
+	_mode_label.text = "Матч завершён"
+	if _game_state.winner_player_id == -1:
+		_error_label.text = "Ничья. Enter — новый матч"
+	elif _game_state.winner_player_id == _perspective_player_id:
+		_error_label.text = "Победа! Enter — новый матч"
+	else:
+		_error_label.text = "Поражение. Enter — новый матч"
