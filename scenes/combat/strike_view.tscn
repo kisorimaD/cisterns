@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/strike_view.gd" id="1_strike"]
+
+[node name="StrikeView" type="Node2D"]
+script = ExtResource("1_strike")

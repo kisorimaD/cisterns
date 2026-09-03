@@ -156,7 +156,9 @@ water_income = max(0, water_field.sample(position) - upstream_gatherer_count)
 - На карте появляется короткое предупреждение, видимое обоим игрокам.
 - После задержки бомба уничтожает все свои и вражеские юниты в радиусе
   поражения.
-- После взрыва создаётся временная область раскрытия большего радиуса.
+- За один тик до взрыва создаётся временная область раскрытия большего радиуса,
+  чтобы обнаруженный попаданием юнит был виден перед уничтожением.
+- Визуальная граница активной области раскрытия видна обоим игрокам.
 - Вражеские юниты видимы, пока находятся внутри активной области раскрытия.
 - После выхода из области или окончания её времени они снова скрываются.
 - Способность имеет цену и отдельную перезарядку.
@@ -164,13 +166,15 @@ water_income = max(0, water_field.sample(position) - upstream_gatherer_count)
 Начальные параметры для прототипа:
 
 ```text
-радиус поражения: 48 пикселей
-радиус раскрытия: 144 пикселя
+радиус поражения: 40 пикселей
+радиус раскрытия: 80 пикселей
 предупреждение: 1,5 секунды
 длительность раскрытия: 3 секунды
+опережение раскрытия перед взрывом: 0,25 секунды
 ```
 
-Цена и перезарядка являются балансными параметрами.
+Радиус раскрытия бомбы равен двум радиусам поражения. Цена, размеры и
+перезарядка являются балансными параметрами.
 
 ### 4.6. Ракетный удар за золото
 
@@ -568,6 +572,9 @@ enum InputMode {
 → LAUNCH_BOMB
 ```
 
+В текущем прототипе клавиша `B` заменяет кнопку бомбы, а `Esc` отменяет
+наведение.
+
 Предварительная траектория и радиус способности являются только подсказкой. Финальная
 проверка всегда выполняется в `GameState`.
 
@@ -737,6 +744,7 @@ extends Resource
 @export var gathering_interval_ticks := 8
 @export var unit_move_speed := 96.0
 @export var unit_selection_radius := 22.0
+@export var initial_water := 12
 
 @export var maximum_water_income := 10
 @export var maximum_gold_income := 3
@@ -744,8 +752,9 @@ extends Resource
 @export var bomb_water_cost := 6
 @export var bomb_cooldown_ticks := 20
 @export var bomb_warning_ticks := 6
-@export var bomb_damage_radius := 48.0
-@export var bomb_reveal_radius := 144.0
+@export var bomb_damage_radius := 40.0
+@export var bomb_reveal_radius := 80.0
+@export var bomb_reveal_lead_ticks := 1
 @export var bomb_reveal_duration_ticks := 12
 
 @export var missile_gold_cost := 10

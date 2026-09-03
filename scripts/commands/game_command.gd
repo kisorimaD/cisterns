@@ -28,3 +28,16 @@ static func move_unit(
 	command.target = command_target
 	command.sequence_number = command_sequence_number
 	return command
+
+
+static func launch_bomb(
+		command_player_id: int,
+		command_target: Vector2,
+		command_sequence_number: int
+) -> GameCommand:
+	var command := GameCommand.new()
+	command.type = Type.LAUNCH_BOMB
+	command.player_id = command_player_id
+	command.target = command_target
+	command.sequence_number = command_sequence_number
+	return command
