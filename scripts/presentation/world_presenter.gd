@@ -14,7 +14,7 @@ const REVEAL_ZONE_VIEW_SCENE := preload("res://scenes/combat/reveal_zone_view.ts
 var _views_by_unit_id: Dictionary[int, UnitView] = {}
 var _strike_views: Dictionary[int, StrikeView] = {}
 var _reveal_zone_views: Dictionary[int, RevealZoneView] = {}
-var _bomb_preview: StrikeView
+var _strike_preview: StrikeView
 
 
 func _ready() -> void:
@@ -24,6 +24,7 @@ func _ready() -> void:
 			_views_by_unit_id[view.unit_id] = view
 			view.snap_to_position(_game_state.get_unit_position(view.unit_id))
 	_refresh_visibility()
+	_refresh_upstream_indicators()
 
 
 func on_unit_moved(
@@ -35,6 +36,7 @@ func on_unit_moved(
 	var view: UnitView = _views_by_unit_id.get(unit_id)
 	if view != null:
 		view.move_to_position(to, duration_seconds)
+	_refresh_upstream_indicators()
 
 
 func on_selected_unit_changed(unit_id: int) -> void:
@@ -47,6 +49,7 @@ func on_unit_gathering_changed(unit_id: int, resource_type: int) -> void:
 	var view: UnitView = _views_by_unit_id.get(unit_id)
 	if view != null:
 		view.set_gathering(resource_type != UnitState.ResourceType.NONE)
+	_refresh_upstream_indicators()
 
 
 func on_unit_visibility_changed(player_id: int, unit_id: int, visible: bool) -> void:
@@ -62,6 +65,7 @@ func set_perspective(player_id: int) -> void:
 	perspective_player_id = player_id
 	_refresh_visibility()
 	_refresh_reveal_visibility()
+	_refresh_upstream_indicators()
 
 
 func on_strike_scheduled(strike_id: int) -> void:
@@ -73,6 +77,7 @@ func on_strike_scheduled(strike_id: int) -> void:
 	view.configure(
 		strike.id,
 		strike.target,
+		strike.type,
 		strike.damage_radius,
 		strike.reveal_radius
 	)
@@ -109,28 +114,49 @@ func on_unit_destroyed(unit_id: int, _position: Vector2) -> void:
 	if view != null:
 		view.set_selected(false)
 		view.set_gathering(false)
+		view.set_upstream_count(0, false)
 		view.visible = false
+	_refresh_upstream_indicators()
 
 
 func on_bomb_target_preview_changed(
 		map_position: Vector2,
+		strike_type: StrikeState.Type,
 		damage_radius: float,
 		reveal_radius: float,
 		valid: bool,
 		visible: bool
 ) -> void:
-	if _bomb_preview == null:
-		_bomb_preview = STRIKE_VIEW_SCENE.instantiate() as StrikeView
-		_telegraph_views.add_child(_bomb_preview)
-	_bomb_preview.visible = visible
+	if _strike_preview == null:
+		_strike_preview = STRIKE_VIEW_SCENE.instantiate() as StrikeView
+		_telegraph_views.add_child(_strike_preview)
+	_strike_preview.visible = visible
 	if visible:
-		_bomb_preview.configure(-1, map_position, damage_radius, reveal_radius, true, valid)
+		_strike_preview.configure(
+			-1,
+			map_position,
+			strike_type,
+			damage_radius,
+			reveal_radius,
+			true,
+			valid
+		)
 
 
 func _refresh_visibility() -> void:
 	for unit_id: int in _views_by_unit_id:
 		var view: UnitView = _views_by_unit_id[unit_id]
 		view.visible = _game_state.is_unit_visible_to(unit_id, perspective_player_id)
+
+
+func _refresh_upstream_indicators() -> void:
+	for unit_id: int in _views_by_unit_id:
+		var view: UnitView = _views_by_unit_id[unit_id]
+		var upstream_count: int = _game_state.get_upstream_gatherer_count_for_unit(
+			unit_id,
+			perspective_player_id
+		)
+		view.set_upstream_count(maxi(0, upstream_count), upstream_count >= 0)
 
 
 func _refresh_reveal_visibility() -> void:

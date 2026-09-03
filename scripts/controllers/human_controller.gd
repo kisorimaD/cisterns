@@ -13,6 +13,7 @@ signal controlled_player_changed(player_id: int)
 signal debug_full_visibility_changed(enabled: bool)
 signal bomb_target_preview_changed(
 	map_position: Vector2,
+	strike_type: int,
 	damage_radius: float,
 	reveal_radius: float,
 	valid: bool,
@@ -23,6 +24,7 @@ enum InputMode {
 	NORMAL,
 	UNIT_SELECTED,
 	AIMING_BOMB,
+	AIMING_MISSILE,
 }
 
 @onready var _game_state: GameState = %GameState
@@ -39,7 +41,7 @@ func _ready() -> void:
 	var bot_controller: BotController = BotController.new()
 	bot_controller.name = "BotController"
 	bot_controller.configure(_game_state, _command_gateway)
-	get_parent().add_child(bot_controller)
+	get_parent().add_child.call_deferred(bot_controller)
 	_game_state.tick_advanced.connect(bot_controller.on_tick_advanced)
 	controlled_player_changed.connect(bot_controller.on_debug_controlled_player_changed)
 
@@ -50,8 +52,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		var mouse_position: Vector2 = (event as InputEventMouseMotion).position
-		if _input_mode == InputMode.AIMING_BOMB:
-			_emit_bomb_preview(mouse_position, true)
+		if _is_aiming_strike():
+			_emit_strike_preview(mouse_position, true)
 		elif _selected_unit_id != -1:
 			_emit_target_preview(mouse_position)
 		return
@@ -64,9 +66,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	var map_position: Vector2 = _screen_to_map_position(mouse_event.position)
 	if not _game_state.is_position_inside_map(map_position):
 		return
-	if _input_mode == InputMode.AIMING_BOMB:
-		_submit_bomb(map_position)
-		_emit_bomb_preview(mouse_event.position, false)
+	if _is_aiming_strike():
+		_submit_strike(map_position)
+		_emit_strike_preview(mouse_event.position, false)
 		_set_input_mode(
 			InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL
 		)
@@ -136,14 +138,21 @@ func _handle_debug_key(event: InputEventKey) -> void:
 	match event.keycode:
 		KEY_B:
 			if _input_mode == InputMode.AIMING_BOMB:
-				_cancel_bomb_aiming()
+				_cancel_strike_aiming()
 			else:
 				_set_input_mode(InputMode.AIMING_BOMB)
-				_emit_bomb_preview(get_viewport().get_mouse_position(), true)
+				_emit_strike_preview(get_viewport().get_mouse_position(), true)
+			get_viewport().set_input_as_handled()
+		KEY_M:
+			if _input_mode == InputMode.AIMING_MISSILE:
+				_cancel_strike_aiming()
+			else:
+				_set_input_mode(InputMode.AIMING_MISSILE)
+				_emit_strike_preview(get_viewport().get_mouse_position(), true)
 			get_viewport().set_input_as_handled()
 		KEY_ESCAPE:
-			if _input_mode == InputMode.AIMING_BOMB:
-				_cancel_bomb_aiming()
+			if _is_aiming_strike():
+				_cancel_strike_aiming()
 				get_viewport().set_input_as_handled()
 		KEY_F1:
 			_debug_full_visibility = not _debug_full_visibility
@@ -153,34 +162,62 @@ func _handle_debug_key(event: InputEventKey) -> void:
 			_controlled_player_id = (_controlled_player_id + 1) % GameState.PLAYER_COUNT
 			_selected_unit_id = -1
 			selected_unit_changed.emit(-1)
-			_cancel_bomb_aiming()
+			_cancel_strike_aiming()
 			controlled_player_changed.emit(_controlled_player_id)
 			get_viewport().set_input_as_handled()
 
 
-func _submit_bomb(map_position: Vector2) -> void:
-	var command: GameCommand = GameCommand.launch_bomb(
-		_controlled_player_id,
-		map_position
-	)
+func _submit_strike(map_position: Vector2) -> void:
+	var command: GameCommand
+	if _input_mode == InputMode.AIMING_MISSILE:
+		command = GameCommand.launch_missile(_controlled_player_id, map_position)
+	else:
+		command = GameCommand.launch_bomb(_controlled_player_id, map_position)
 	_command_gateway.submit(command)
 
 
-func _cancel_bomb_aiming() -> void:
-	bomb_target_preview_changed.emit(Vector2.ZERO, 0.0, 0.0, false, false)
+func _cancel_strike_aiming() -> void:
+	bomb_target_preview_changed.emit(
+		Vector2.ZERO,
+		StrikeState.Type.BOMB,
+		0.0,
+		0.0,
+		false,
+		false
+	)
 	_set_input_mode(InputMode.UNIT_SELECTED if _selected_unit_id != -1 else InputMode.NORMAL)
 
 
-func _emit_bomb_preview(screen_position: Vector2, is_visible: bool) -> void:
+func _emit_strike_preview(screen_position: Vector2, is_visible: bool) -> void:
 	var map_position: Vector2 = _screen_to_map_position(screen_position)
 	var valid: bool = _game_state.is_position_inside_map(map_position)
+	var strike_type: StrikeState.Type = (
+		StrikeState.Type.MISSILE
+		if _input_mode == InputMode.AIMING_MISSILE
+		else StrikeState.Type.BOMB
+	)
+	var damage_radius: float = (
+		GameState.MISSILE_DAMAGE_RADIUS
+		if strike_type == StrikeState.Type.MISSILE
+		else GameState.BOMB_DAMAGE_RADIUS
+	)
+	var reveal_radius: float = (
+		GameState.MISSILE_REVEAL_RADIUS
+		if strike_type == StrikeState.Type.MISSILE
+		else GameState.BOMB_REVEAL_RADIUS
+	)
 	bomb_target_preview_changed.emit(
 		map_position,
-		GameState.BOMB_DAMAGE_RADIUS,
-		GameState.BOMB_REVEAL_RADIUS,
+		strike_type,
+		damage_radius,
+		reveal_radius,
 		valid,
 		is_visible
 	)
+
+
+func _is_aiming_strike() -> bool:
+	return _input_mode == InputMode.AIMING_BOMB or _input_mode == InputMode.AIMING_MISSILE
 
 
 func _set_input_mode(mode: InputMode) -> void:

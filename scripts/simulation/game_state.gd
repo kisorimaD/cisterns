@@ -34,6 +34,11 @@ const BOMB_DAMAGE_RADIUS := 40.0
 const BOMB_REVEAL_RADIUS := 80.0
 const BOMB_REVEAL_LEAD_TICKS := 1
 const BOMB_REVEAL_DURATION_TICKS := 12
+const MISSILE_GOLD_COST := 10
+const MISSILE_COOLDOWN_TICKS := 40
+const MISSILE_WARNING_TICKS := 28
+const MISSILE_DAMAGE_RADIUS := 96.0
+const MISSILE_REVEAL_RADIUS := 0.0
 
 var current_tick := 0
 var units: Dictionary[int, UnitState] = {}
@@ -129,10 +134,17 @@ func set_debug_full_visibility(enabled: bool) -> void:
 	_refresh_visibility()
 
 
-func get_income_preview_for_unit(unit_id: int, map_position: Vector2) -> ResourceSample:
-	if not units.has(unit_id):
+func get_income_preview_for_unit(_unit_id: int, map_position: Vector2) -> ResourceSample:
+	# A destination preview exposes only public map data. Applying upstream
+	# attenuation here would turn the cursor into a detector for hidden units.
+	return _map.sample_resources(map_position)
+
+
+func get_unit_income_preview(unit_id: int) -> ResourceSample:
+	var unit: UnitState = units.get(unit_id)
+	if unit == null or not unit.alive or unit.is_moving:
 		return ResourceSample.new()
-	var sample: ResourceSample = _map.sample_resources(map_position)
+	var sample: ResourceSample = get_income_preview_for_unit(unit_id, unit.position)
 	if sample.water_income > 0:
 		sample.water_income = maxi(
 			0,
@@ -141,11 +153,20 @@ func get_income_preview_for_unit(unit_id: int, map_position: Vector2) -> Resourc
 	return sample
 
 
-func get_unit_income_preview(unit_id: int) -> ResourceSample:
+func get_upstream_gatherer_count_for_unit(unit_id: int, perspective_player_id: int) -> int:
 	var unit: UnitState = units.get(unit_id)
-	if unit == null or not unit.alive or unit.is_moving:
-		return ResourceSample.new()
-	return get_income_preview_for_unit(unit_id, unit.position)
+	if (
+		unit == null
+		or not unit.alive
+		or unit.owner_id != perspective_player_id
+		or unit.is_moving
+		or unit.gathering_resource_type != UnitState.ResourceType.WATER
+	):
+		return -1
+	var sample: ResourceSample = _map.sample_resources(unit.position)
+	if sample.water_income <= 0:
+		return -1
+	return _count_upstream_gatherers(sample, unit_id)
 
 
 func is_position_inside_map(map_position: Vector2) -> bool:
@@ -188,6 +209,8 @@ func _validate_and_apply(command: GameCommand) -> void:
 			_apply_move_command(command)
 		GameCommand.Type.LAUNCH_BOMB:
 			_apply_bomb_command(command)
+		GameCommand.Type.LAUNCH_MISSILE:
+			_apply_missile_command(command)
 		_:
 			_reject(command, &"unsupported_command")
 
@@ -235,6 +258,38 @@ func _apply_bomb_command(command: GameCommand) -> void:
 		current_tick + BOMB_WARNING_TICKS,
 		BOMB_DAMAGE_RADIUS,
 		BOMB_REVEAL_RADIUS
+	)
+	strikes[strike.id] = strike
+	_next_strike_id += 1
+	resources_changed.emit(player.id, player.water, player.gold)
+	strike_scheduled.emit(strike.id)
+
+
+func _apply_missile_command(command: GameCommand) -> void:
+	var player: PlayerState = players.get(command.player_id)
+	if player == null or player.active_unit_ids.is_empty():
+		_reject(command, &"no_active_units")
+		return
+	if not is_position_inside_map(command.target):
+		_reject(command, &"target_outside_map")
+		return
+	if player.gold < MISSILE_GOLD_COST:
+		_reject(command, &"not_enough_gold")
+		return
+	if player.missile_cooldown_ticks > 0:
+		_reject(command, &"missile_on_cooldown")
+		return
+
+	player.gold -= MISSILE_GOLD_COST
+	player.missile_cooldown_ticks = MISSILE_COOLDOWN_TICKS
+	var strike: StrikeState = StrikeState.new(
+		_next_strike_id,
+		command.player_id,
+		StrikeState.Type.MISSILE,
+		command.target,
+		current_tick + MISSILE_WARNING_TICKS,
+		MISSILE_DAMAGE_RADIUS,
+		MISSILE_REVEAL_RADIUS
 	)
 	strikes[strike.id] = strike
 	_next_strike_id += 1
@@ -374,6 +429,7 @@ func _expire_reveal_zones() -> void:
 func _advance_cooldowns() -> void:
 	for player: PlayerState in players.values():
 		player.bomb_cooldown_ticks = maxi(0, player.bomb_cooldown_ticks - 1)
+		player.missile_cooldown_ticks = maxi(0, player.missile_cooldown_ticks - 1)
 
 
 func _rebuild_visibility_cache() -> void:

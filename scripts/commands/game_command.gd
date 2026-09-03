@@ -37,3 +37,14 @@ static func launch_bomb(
 	command.player_id = command_player_id
 	command.target = command_target
 	return command
+
+
+static func launch_missile(
+		command_player_id: int,
+		command_target: Vector2
+) -> GameCommand:
+	var command := GameCommand.new()
+	command.type = Type.LAUNCH_MISSILE
+	command.player_id = command_player_id
+	command.target = command_target
+	return command

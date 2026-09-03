@@ -3,6 +3,7 @@ extends Node
 
 const MOVE_DECISION_INTERVAL_TICKS: int = 20
 const BOMB_DECISION_INTERVAL_TICKS: int = 8
+const MISSILE_DECISION_INTERVAL_TICKS: int = 12
 const ECONOMY_SAMPLE_STEP: int = 48
 const ECONOMY_SAMPLE_MARGIN: float = 24.0
 const TARGET_SEPARATION: float = 72.0
@@ -16,6 +17,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _paused_for_debug_control: bool = false
 var _next_move_decision_tick: int = 2
 var _next_bomb_decision_tick: int = 8
+var _next_missile_decision_tick: int = 16
 var _last_known_enemy_positions: Dictionary[int, Vector2] = {}
 var _game_state: GameState
 var _command_gateway: CommandGateway
@@ -37,6 +39,9 @@ func on_tick_advanced(tick: int) -> void:
 	if tick >= _next_bomb_decision_tick:
 		_try_launch_bomb()
 		_next_bomb_decision_tick = tick + BOMB_DECISION_INTERVAL_TICKS
+	if tick >= _next_missile_decision_tick:
+		_try_launch_missile()
+		_next_missile_decision_tick = tick + MISSILE_DECISION_INTERVAL_TICKS
 
 
 func on_debug_controlled_player_changed(player_id: int) -> void:
@@ -178,7 +183,54 @@ func _pick_safe_target(candidates: Array[Vector2], jitter_radius: float) -> Vect
 
 
 func _is_safe_from_friendly_units(target: Vector2) -> bool:
-	var safe_distance: float = GameState.BOMB_DAMAGE_RADIUS + FRIENDLY_FIRE_MARGIN
+	return _is_safe_from_friendly_units_for_radius(target, GameState.BOMB_DAMAGE_RADIUS)
+
+
+func _try_launch_missile() -> void:
+	var player: PlayerState = _game_state.get_player_state(bot_player_id)
+	if (
+		player == null
+		or player.active_unit_ids.is_empty()
+		or player.gold < GameState.MISSILE_GOLD_COST
+		or player.missile_cooldown_ticks > 0
+	):
+		return
+	var target: Vector2 = _choose_missile_target()
+	if target != INVALID_TARGET:
+		_command_gateway.submit(GameCommand.launch_missile(bot_player_id, target))
+
+
+func _choose_missile_target() -> Vector2:
+	var candidates: Array[Vector2] = []
+	for unit: UnitState in _game_state.units.values():
+		if (
+			unit.owner_id != bot_player_id
+			and unit.alive
+			and _game_state.is_unit_visible_to(unit.id, bot_player_id)
+		):
+			candidates.append(unit.position)
+	for remembered_position: Vector2 in _last_known_enemy_positions.values():
+		candidates.append(remembered_position)
+	# These are public high-value gathering zones. The long warning turns a
+	# missile aimed here into area denial even when no enemy is currently seen.
+	candidates.append_array([
+		Vector2(300.0, 185.0),
+		Vector2(480.0, 185.0),
+		Vector2(660.0, 185.0),
+		Vector2(530.0, 470.0),
+	])
+	if candidates.is_empty():
+		return INVALID_TARGET
+	var start_index: int = _rng.randi_range(0, candidates.size() - 1)
+	for offset: int in candidates.size():
+		var target: Vector2 = candidates[(start_index + offset) % candidates.size()]
+		if _is_safe_from_friendly_units_for_radius(target, GameState.MISSILE_DAMAGE_RADIUS):
+			return target
+	return INVALID_TARGET
+
+
+func _is_safe_from_friendly_units_for_radius(target: Vector2, damage_radius: float) -> bool:
+	var safe_distance: float = damage_radius + FRIENDLY_FIRE_MARGIN
 	for unit: UnitState in _game_state.units.values():
 		if (
 			unit.owner_id == bot_player_id

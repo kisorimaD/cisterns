@@ -19,7 +19,7 @@ func _ready() -> void:
 	_refresh_resources()
 	_refresh_selected_income()
 	_refresh_debug_label()
-	_refresh_bomb_status()
+	_refresh_strike_status()
 
 
 func on_resources_changed(player_id: int, water: int, gold: int) -> void:
@@ -51,7 +51,7 @@ func on_target_preview_changed(
 
 func on_tick_advanced(_tick: int) -> void:
 	_refresh_selected_income()
-	_refresh_bomb_status()
+	_refresh_strike_status()
 
 
 func on_controlled_player_changed(player_id: int) -> void:
@@ -60,6 +60,7 @@ func on_controlled_player_changed(player_id: int) -> void:
 	_refresh_resources()
 	_refresh_selected_income()
 	_refresh_debug_label()
+	_refresh_strike_status()
 
 
 func on_debug_full_visibility_changed(enabled: bool) -> void:
@@ -70,8 +71,10 @@ func on_debug_full_visibility_changed(enabled: bool) -> void:
 func on_input_mode_changed(mode: int) -> void:
 	if mode == HumanController.InputMode.AIMING_BOMB:
 		_mode_label.text = "Режим: выберите цель бомбы (Esc — отмена)"
+	elif mode == HumanController.InputMode.AIMING_MISSILE:
+		_mode_label.text = "Режим: выберите цель ракеты (Esc — отмена)"
 	else:
-		_mode_label.text = "Режим: движение | B — бомба"
+		_mode_label.text = "Режим: движение | B — бомба | M — ракета"
 
 
 func on_command_rejected(player_id: int, _command_type: int, reason: StringName) -> void:
@@ -106,14 +109,24 @@ func _refresh_debug_label() -> void:
 	]
 
 
-func _refresh_bomb_status() -> void:
+func _refresh_strike_status() -> void:
 	var player: PlayerState = _game_state.get_player_state(_perspective_player_id)
 	if player == null:
 		return
+	var bomb_status: String
 	if player.bomb_cooldown_ticks == 0:
-		_bomb_label.text = "Бомба: %d воды | готова" % GameState.BOMB_WATER_COST
+		bomb_status = "Бомба: %d воды | готова" % GameState.BOMB_WATER_COST
 	else:
-		var seconds: float = (
+		var bomb_seconds: float = (
 			player.bomb_cooldown_ticks * GameState.SIMULATION_TICK_SECONDS
 		)
-		_bomb_label.text = "Бомба: перезарядка %.2f с" % seconds
+		bomb_status = "Бомба: перезарядка %.2f с" % bomb_seconds
+	var missile_status: String
+	if player.missile_cooldown_ticks == 0:
+		missile_status = "Ракета: %d золота | готова" % GameState.MISSILE_GOLD_COST
+	else:
+		var missile_seconds: float = (
+			player.missile_cooldown_ticks * GameState.SIMULATION_TICK_SECONDS
+		)
+		missile_status = "Ракета: перезарядка %.2f с" % missile_seconds
+	_bomb_label.text = "%s\n%s" % [bomb_status, missile_status]
