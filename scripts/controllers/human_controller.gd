@@ -32,8 +32,16 @@ enum InputMode {
 var _selected_unit_id := -1
 var _controlled_player_id := GameState.PLAYER_ID
 var _debug_full_visibility := false
-var _next_sequence_by_player: Dictionary[int, int] = {0: 0, 1: 0}
 var _input_mode: InputMode = InputMode.NORMAL
+
+
+func _ready() -> void:
+	var bot_controller: BotController = BotController.new()
+	bot_controller.name = "BotController"
+	bot_controller.configure(_game_state, _command_gateway)
+	get_parent().add_child(bot_controller)
+	_game_state.tick_advanced.connect(bot_controller.on_tick_advanced)
+	controlled_player_changed.connect(bot_controller.on_debug_controlled_player_changed)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -80,10 +88,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	var command: GameCommand = GameCommand.move_unit(
 		_controlled_player_id,
 		_selected_unit_id,
-		map_position,
-		_next_sequence_by_player[_controlled_player_id]
+		map_position
 	)
-	_next_sequence_by_player[_controlled_player_id] += 1
 	_command_gateway.submit(command)
 	_emit_target_preview(mouse_event.position)
 	get_viewport().set_input_as_handled()
@@ -153,13 +159,10 @@ func _handle_debug_key(event: InputEventKey) -> void:
 
 
 func _submit_bomb(map_position: Vector2) -> void:
-	var sequence_number: int = _next_sequence_by_player[_controlled_player_id]
 	var command: GameCommand = GameCommand.launch_bomb(
 		_controlled_player_id,
-		map_position,
-		sequence_number
+		map_position
 	)
-	_next_sequence_by_player[_controlled_player_id] = sequence_number + 1
 	_command_gateway.submit(command)
 
 
