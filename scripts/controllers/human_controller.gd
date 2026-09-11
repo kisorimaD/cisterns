@@ -140,6 +140,14 @@ func on_unit_destroyed(unit_id: int, _position: Vector2) -> void:
 	_cancel_current_mode()
 
 
+func on_bomb_requested() -> void:
+	_toggle_strike_aiming(InputMode.AIMING_BOMB)
+
+
+func on_missile_requested() -> void:
+	_toggle_strike_aiming(InputMode.AIMING_MISSILE)
+
+
 func _handle_debug_key(event: InputEventKey) -> void:
 	if not event.pressed or event.echo:
 		return
@@ -150,18 +158,10 @@ func _handle_debug_key(event: InputEventKey) -> void:
 		return
 	match event.keycode:
 		KEY_B:
-			if _input_mode == InputMode.AIMING_BOMB:
-				_cancel_strike_aiming()
-			else:
-				_set_input_mode(InputMode.AIMING_BOMB)
-				_emit_strike_preview(get_viewport().get_mouse_position(), true)
+			_toggle_strike_aiming(InputMode.AIMING_BOMB)
 			get_viewport().set_input_as_handled()
 		KEY_M:
-			if _input_mode == InputMode.AIMING_MISSILE:
-				_cancel_strike_aiming()
-			else:
-				_set_input_mode(InputMode.AIMING_MISSILE)
-				_emit_strike_preview(get_viewport().get_mouse_position(), true)
+			_toggle_strike_aiming(InputMode.AIMING_MISSILE)
 			get_viewport().set_input_as_handled()
 		KEY_R:
 			if _input_mode == InputMode.PLACING_REPLACEMENT:
@@ -186,6 +186,16 @@ func _handle_debug_key(event: InputEventKey) -> void:
 			_cancel_current_mode()
 			controlled_player_changed.emit(_controlled_player_id)
 			get_viewport().set_input_as_handled()
+
+
+func _toggle_strike_aiming(mode: InputMode) -> void:
+	if _game_state.match_finished:
+		return
+	if _input_mode == mode:
+		_cancel_strike_aiming()
+		return
+	_set_input_mode(mode)
+	_emit_strike_preview(get_viewport().get_mouse_position(), true)
 
 
 func _submit_strike(map_position: Vector2) -> void:
@@ -225,14 +235,14 @@ func _emit_strike_preview(screen_position: Vector2, is_visible: bool) -> void:
 		else StrikeState.Type.BOMB
 	)
 	var damage_radius: float = (
-		GameState.MISSILE_DAMAGE_RADIUS
+		_game_state.rules.missile_damage_radius
 		if strike_type == StrikeState.Type.MISSILE
-		else GameState.BOMB_DAMAGE_RADIUS
+		else _game_state.rules.bomb_damage_radius
 	)
 	var reveal_radius: float = (
-		GameState.MISSILE_REVEAL_RADIUS
+		_game_state.rules.missile_reveal_radius
 		if strike_type == StrikeState.Type.MISSILE
-		else GameState.BOMB_REVEAL_RADIUS
+		else _game_state.rules.bomb_reveal_radius
 	)
 	bomb_target_preview_changed.emit(
 		map_position,

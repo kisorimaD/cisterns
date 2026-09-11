@@ -1,8 +1,15 @@
 class_name HUD
 extends PanelContainer
 
+signal bomb_requested
+signal missile_requested
+
 @onready var _game_state: GameState = get_node("../../Simulation/GameState") as GameState
 @onready var _resource_label: Label = %ResourceLabel
+@onready var _water_label: Label = %WaterLabel
+@onready var _gold_label: Label = %GoldLabel
+@onready var _bomb_button: Button = %BombButton
+@onready var _missile_button: Button = %MissileButton
 @onready var _selected_label: Label = %SelectedIncomeLabel
 @onready var _target_label: Label = %TargetIncomeLabel
 @onready var _debug_label: Label = %DebugLabel
@@ -16,6 +23,8 @@ var _debug_full_visibility := false
 
 
 func _ready() -> void:
+	_bomb_button.pressed.connect(bomb_requested.emit)
+	_missile_button.pressed.connect(missile_requested.emit)
 	_refresh_resources()
 	_refresh_selected_income()
 	_refresh_debug_label()
@@ -26,11 +35,11 @@ func _ready() -> void:
 func on_resources_changed(player_id: int, water: int, gold: int) -> void:
 	if player_id == _perspective_player_id:
 		var player: PlayerState = _game_state.get_player_state(player_id)
-		_resource_label.text = "Запасы: вода %d | золото %d | юниты %d/%d" % [
-			water,
-			gold,
+		_water_label.text = str(water)
+		_gold_label.text = str(gold)
+		_resource_label.text = "Юниты: %d/%d" % [
 			player.active_unit_ids.size(),
-			GameState.MAXIMUM_ACTIVE_UNITS,
+			_game_state.rules.maximum_active_units,
 		]
 
 
@@ -60,6 +69,7 @@ func on_tick_advanced(_tick: int) -> void:
 	_refresh_resources()
 	_refresh_selected_income()
 	_refresh_strike_status()
+	_refresh_debug_label()
 	_refresh_match_result()
 
 
@@ -78,6 +88,8 @@ func on_debug_full_visibility_changed(enabled: bool) -> void:
 
 
 func on_input_mode_changed(mode: int) -> void:
+	_bomb_button.set_pressed_no_signal(mode == HumanController.InputMode.AIMING_BOMB)
+	_missile_button.set_pressed_no_signal(mode == HumanController.InputMode.AIMING_MISSILE)
 	if mode == HumanController.InputMode.AIMING_BOMB:
 		_mode_label.text = "Режим: выберите цель бомбы (Esc — отмена)"
 	elif mode == HumanController.InputMode.AIMING_MISSILE:
@@ -85,7 +97,7 @@ func on_input_mode_changed(mode: int) -> void:
 	elif mode == HumanController.InputMode.PLACING_REPLACEMENT:
 		_mode_label.text = "Режим: выберите точку в своей стартовой области"
 	else:
-		_mode_label.text = "Режим: B — бомба | M — ракета | R — замена"
+		_mode_label.text = "Режим: выберите юнит | B/M — удары | R — замена"
 
 
 func on_command_rejected(player_id: int, _command_type: int, reason: StringName) -> void:
@@ -114,9 +126,15 @@ func _refresh_selected_income() -> void:
 
 func _refresh_debug_label() -> void:
 	var visibility_text: String = "вкл" if _debug_full_visibility else "выкл"
-	_debug_label.text = "F1 обзор: %s | F2 сторона: %d" % [
+	var event_text := ""
+	for event: String in _game_state.get_recent_events(3):
+		if not event_text.is_empty():
+			event_text += "\n"
+		event_text += event
+	_debug_label.text = "F1 обзор: %s | F2 сторона: %d\n%s" % [
 		visibility_text,
 		_perspective_player_id,
+		event_text,
 	]
 
 
@@ -126,40 +144,72 @@ func _refresh_strike_status() -> void:
 		return
 	var bomb_status: String
 	if player.bomb_cooldown_ticks == 0:
-		bomb_status = "Бомба: %d воды | готова" % GameState.BOMB_WATER_COST
+		bomb_status = "%d воды" % _game_state.rules.bomb_water_cost
+		_bomb_button.tooltip_text = "Бомба: %d воды" % _game_state.rules.bomb_water_cost
 	else:
 		var bomb_seconds: float = (
-			player.bomb_cooldown_ticks * GameState.SIMULATION_TICK_SECONDS
+			player.bomb_cooldown_ticks * _game_state.rules.simulation_tick_seconds
 		)
-		bomb_status = "Бомба: перезарядка %.2f с" % bomb_seconds
+		bomb_status = "%.1f с" % bomb_seconds
+		_bomb_button.tooltip_text = "Бомба перезаряжается"
 	var missile_status: String
 	if player.missile_cooldown_ticks == 0:
-		missile_status = "Ракета: %d золота | готова" % GameState.MISSILE_GOLD_COST
+		missile_status = "%d золота" % _game_state.rules.missile_gold_cost
+		_missile_button.tooltip_text = "Ракета: %d золота" % _game_state.rules.missile_gold_cost
 	else:
 		var missile_seconds: float = (
-			player.missile_cooldown_ticks * GameState.SIMULATION_TICK_SECONDS
+			player.missile_cooldown_ticks * _game_state.rules.simulation_tick_seconds
 		)
-		missile_status = "Ракета: перезарядка %.2f с" % missile_seconds
+		missile_status = "%.1f с" % missile_seconds
+		_missile_button.tooltip_text = "Ракета перезаряжается"
+	_bomb_button.text = bomb_status
+	_missile_button.text = missile_status
+	_bomb_button.disabled = (
+		_game_state.match_finished
+		or player.active_unit_ids.is_empty()
+		or player.water < _game_state.rules.bomb_water_cost
+		or player.bomb_cooldown_ticks > 0
+	)
+	_missile_button.disabled = (
+		_game_state.match_finished
+		or player.active_unit_ids.is_empty()
+		or player.gold < _game_state.rules.missile_gold_cost
+		or player.missile_cooldown_ticks > 0
+	)
 	var replacement_status: String
 	var replacement_cost: int = _game_state.get_next_replacement_cost(
 		_perspective_player_id
 	)
 	if player.active_unit_ids.is_empty():
 		replacement_status = "Замена: %d золота | недоступна" % replacement_cost
-	elif player.active_unit_ids.size() >= GameState.MAXIMUM_ACTIVE_UNITS:
+	elif player.active_unit_ids.size() >= _game_state.rules.maximum_active_units:
 		replacement_status = "Замена: %d золота | полный состав" % replacement_cost
 	else:
 		replacement_status = "Замена: %d золота | готова" % replacement_cost
-	_bomb_label.text = "%s\n%s\n%s" % [bomb_status, missile_status, replacement_status]
+	_bomb_label.text = replacement_status
 
 
 func _refresh_match_result() -> void:
 	if not _game_state.match_finished:
 		return
 	_mode_label.text = "Матч завершён"
+	var metrics: Dictionary = _game_state.get_match_metrics()
+	var result_text: String
 	if _game_state.winner_player_id == -1:
-		_error_label.text = "Ничья. Enter — новый матч"
+		result_text = "Ничья"
 	elif _game_state.winner_player_id == _perspective_player_id:
-		_error_label.text = "Победа! Enter — новый матч"
+		result_text = "Победа!"
 	else:
-		_error_label.text = "Поражение. Enter — новый матч"
+		result_text = "Поражение"
+	_error_label.text = (
+		"%s Время: %.1f с | команды: %d/%d | удары: %d | потери: %d | замены: %d\n"
+		+ "Enter — новый матч"
+	) % [
+		result_text,
+		metrics["elapsed_seconds"],
+		metrics["commands_accepted"],
+		metrics["commands_received"],
+		metrics["strikes_launched"],
+		metrics["units_destroyed"],
+		metrics["replacements_purchased"],
+	]

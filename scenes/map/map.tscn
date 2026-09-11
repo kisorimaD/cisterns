@@ -15,25 +15,36 @@ script = ExtResource("1_map")
 
 [node name="Rivers" type="Node2D" parent="."]
 
-[node name="StraightRiver" type="Node2D" parent="Rivers"]
+[node name="NorthRiver" type="Node2D" parent="Rivers"]
 script = ExtResource("2_river")
 river_id = 0
-start_point = Vector2(170, 185)
-end_point = Vector2(790, 185)
-half_width = 42.0
+path_points = PackedVector2Array(45, 145, 220, 105, 395, 190, 610, 112, 915, 165)
+half_width = 32.0
 
-[node name="EdgeDiagonalRiver" type="Node2D" parent="Rivers"]
+[node name="MiddleRiver" type="Node2D" parent="Rivers"]
 script = ExtResource("2_river")
 river_id = 1
-start_point = Vector2(758, 412)
-end_point = Vector2(928, 628)
-half_width = 40.0
+path_points = PackedVector2Array(440, -24, 385, 150, 475, 315, 392, 505, 450, 696)
+half_width = 29.0
 river_color = Color(0.105882, 0.431373, 0.67451, 1)
+
+[node name="SouthRiver" type="Node2D" parent="Rivers"]
+script = ExtResource("2_river")
+river_id = 2
+path_points = PackedVector2Array(32, 552, 210, 470, 405, 558, 635, 500, 930, 585)
+half_width = 34.0
+river_color = Color(0.137255, 0.509804, 0.705882, 1)
+center_color = Color(0.415686, 0.827451, 0.921569, 1)
 
 [node name="ResourceFields" type="Node2D" parent="."]
 
-[node name="GoldDeposit" parent="ResourceFields" instance=ExtResource("3_field")]
-position = Vector2(530, 470)
+[node name="WestMountain" parent="ResourceFields" instance=ExtResource("3_field")]
+position = Vector2(255, 325)
+radius = 62.0
+
+[node name="EastMountain" parent="ResourceFields" instance=ExtResource("3_field")]
+position = Vector2(705, 355)
+radius = 62.0
 
 [node name="ResourceMarkers" type="Node2D" parent="."]
 

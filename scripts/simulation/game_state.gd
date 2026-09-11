@@ -20,31 +20,12 @@ signal reveal_zone_created(zone_id: int)
 signal reveal_zone_removed(zone_id: int)
 signal command_rejected(player_id: int, command_type: int, reason: StringName)
 signal match_ended(winner_player_id: int)
+signal event_logged(message: String)
 
-const MAP_SIZE := Vector2(960.0, 672.0)
-const SIMULATION_TICK_SECONDS := 0.25
-const UNIT_MOVE_SPEED := 96.0
-const UNIT_SELECTION_RADIUS := 22.0
-const GATHERING_INTERVAL_TICKS := 8
 const PLAYER_ID := 0
 const PLAYER_COUNT := 2
-const INITIAL_WATER := 12
-const BOMB_WATER_COST := 6
-const BOMB_COOLDOWN_TICKS := 20
-const BOMB_WARNING_TICKS := 6
-const BOMB_DAMAGE_RADIUS := 40.0
-const BOMB_REVEAL_RADIUS := 80.0
-const BOMB_REVEAL_LEAD_TICKS := 1
-const BOMB_REVEAL_DURATION_TICKS := 12
-const MISSILE_GOLD_COST := 10
-const MISSILE_COOLDOWN_TICKS := 40
-const MISSILE_WARNING_TICKS := 28
-const MISSILE_DAMAGE_RADIUS := 96.0
-const MISSILE_REVEAL_RADIUS := 0.0
-const MAXIMUM_ACTIVE_UNITS := 3
-const BASE_REPLACEMENT_COST := 4
-const CHEAP_REPLACEMENT_COUNT := 2
-const REPLACEMENT_CLEARANCE_RADIUS := 44.0
+
+@export var rules: GameRules = preload("res://resources/default_game_rules.tres")
 
 var current_tick := 0
 var units: Dictionary[int, UnitState] = {}
@@ -54,6 +35,12 @@ var reveal_zones: Dictionary[int, RevealZoneState] = {}
 var debug_full_visibility := false
 var match_finished := false
 var winner_player_id := -1
+var event_log: Array[String] = []
+var total_commands_received := 0
+var total_commands_rejected := 0
+var total_strikes_launched := 0
+var total_units_destroyed := 0
+var total_replacements_purchased := 0
 
 @onready var _map: GameMap = %Map
 
@@ -62,36 +49,40 @@ var _pending_commands: Array[GameCommand] = []
 var _expected_sequence_by_player: Dictionary[int, int] = {}
 var _next_strike_id := 1
 var _next_reveal_zone_id := 1
-var _next_unit_id_by_player: Dictionary[int, int] = {0: 4, 1: 104}
+var _next_unit_id_by_player: Dictionary[int, int] = {}
 var _visibility_cache: Dictionary[String, bool] = {}
 
 
 func _ready() -> void:
+	_map.configure(rules)
 	for player_id: int in PLAYER_COUNT:
 		players[player_id] = PlayerState.new(player_id)
-		players[player_id].water = INITIAL_WATER
+		players[player_id].water = rules.initial_water
+		players[player_id].gold = rules.initial_gold
 		_expected_sequence_by_player[player_id] = 0
-	_add_unit(1, 0, Vector2(120.0, 120.0))
-	_add_unit(2, 0, Vector2(120.0, 336.0))
-	_add_unit(3, 0, Vector2(120.0, 552.0))
-	_add_unit(101, 1, Vector2(840.0, 120.0))
-	_add_unit(102, 1, Vector2(840.0, 336.0))
-	_add_unit(103, 1, Vector2(840.0, 552.0))
+	for index: int in rules.player_initial_positions.size():
+		_add_unit(index + 1, 0, rules.player_initial_positions[index])
+	for index: int in rules.bot_initial_positions.size():
+		_add_unit(index + 101, 1, rules.bot_initial_positions[index])
+	_next_unit_id_by_player[0] = rules.player_initial_positions.size() + 1
+	_next_unit_id_by_player[1] = rules.bot_initial_positions.size() + 101
 	_rebuild_visibility_cache()
+	_log_event("Матч начат")
 
 
 func _process(delta: float) -> void:
 	if match_finished:
 		return
 	_tick_accumulator += delta
-	while _tick_accumulator >= SIMULATION_TICK_SECONDS:
-		_tick_accumulator -= SIMULATION_TICK_SECONDS
+	while _tick_accumulator >= rules.simulation_tick_seconds:
+		_tick_accumulator -= rules.simulation_tick_seconds
 		_advance_tick()
 		if match_finished:
 			break
 
 
 func queue_command(command: GameCommand) -> void:
+	total_commands_received += 1
 	if match_finished:
 		_reject(command, &"match_finished")
 		return
@@ -100,7 +91,7 @@ func queue_command(command: GameCommand) -> void:
 
 func get_player_unit_at_position(player_id: int, map_position: Vector2) -> int:
 	var nearest_unit_id: int = -1
-	var nearest_distance: float = UNIT_SELECTION_RADIUS
+	var nearest_distance: float = rules.unit_selection_radius
 	for unit: UnitState in units.values():
 		if not unit.alive or unit.owner_id != player_id:
 			continue
@@ -134,13 +125,38 @@ func get_next_replacement_cost(player_id: int) -> int:
 		return 0
 	var expensive_purchase_index: int = maxi(
 		0,
-		player.replacements_bought - CHEAP_REPLACEMENT_COUNT + 1
+		player.replacements_bought - rules.cheap_replacement_count + 1
 	)
-	return BASE_REPLACEMENT_COST * (1 << expensive_purchase_index)
+	return rules.base_replacement_cost * (1 << expensive_purchase_index)
 
 
 func get_replacement_spawn_candidates(player_id: int) -> Array[Vector2]:
 	return _map.get_spawn_candidates(player_id)
+
+
+func get_elapsed_seconds() -> float:
+	return current_tick * rules.simulation_tick_seconds
+
+
+func get_recent_events(maximum_count: int = 4) -> Array[String]:
+	var first_index: int = maxi(0, event_log.size() - maximum_count)
+	var recent_events: Array[String] = []
+	for index: int in range(first_index, event_log.size()):
+		recent_events.append(event_log[index])
+	return recent_events
+
+
+func get_match_metrics() -> Dictionary:
+	return {
+		"winner_player_id": winner_player_id,
+		"elapsed_seconds": get_elapsed_seconds(),
+		"commands_received": total_commands_received,
+		"commands_accepted": total_commands_received - total_commands_rejected,
+		"commands_rejected": total_commands_rejected,
+		"strikes_launched": total_strikes_launched,
+		"units_destroyed": total_units_destroyed,
+		"replacements_purchased": total_replacements_purchased,
+	}
 
 
 func is_unit_visible_to(unit_id: int, perspective_player_id: int) -> bool:
@@ -201,7 +217,7 @@ func get_upstream_gatherer_count_for_unit(unit_id: int, perspective_player_id: i
 
 
 func is_position_inside_map(map_position: Vector2) -> bool:
-	return Rect2(Vector2.ZERO, MAP_SIZE).has_point(map_position)
+	return Rect2(Vector2.ZERO, rules.map_size).has_point(map_position)
 
 
 func _advance_tick() -> void:
@@ -209,7 +225,7 @@ func _advance_tick() -> void:
 	_advance_units()
 	_update_gathering_states()
 	current_tick += 1
-	if current_tick % GATHERING_INTERVAL_TICKS == 0:
+	if current_tick % rules.gathering_interval_ticks == 0:
 		_gather_resources()
 	_resolve_due_strikes()
 	if match_finished:
@@ -281,28 +297,30 @@ func _apply_bomb_command(command: GameCommand) -> void:
 	if not is_position_inside_map(command.target):
 		_reject(command, &"target_outside_map")
 		return
-	if player.water < BOMB_WATER_COST:
+	if player.water < rules.bomb_water_cost:
 		_reject(command, &"not_enough_water")
 		return
 	if player.bomb_cooldown_ticks > 0:
 		_reject(command, &"bomb_on_cooldown")
 		return
 
-	player.water -= BOMB_WATER_COST
-	player.bomb_cooldown_ticks = BOMB_COOLDOWN_TICKS
+	player.water -= rules.bomb_water_cost
+	player.bomb_cooldown_ticks = rules.bomb_cooldown_ticks
 	var strike: StrikeState = StrikeState.new(
 		_next_strike_id,
 		command.player_id,
 		StrikeState.Type.BOMB,
 		command.target,
-		current_tick + BOMB_WARNING_TICKS,
-		BOMB_DAMAGE_RADIUS,
-		BOMB_REVEAL_RADIUS
+		current_tick + rules.bomb_warning_ticks,
+		rules.bomb_damage_radius,
+		rules.bomb_reveal_radius
 	)
 	strikes[strike.id] = strike
 	_next_strike_id += 1
 	resources_changed.emit(player.id, player.water, player.gold)
 	strike_scheduled.emit(strike.id)
+	total_strikes_launched += 1
+	_log_event("Игрок %d запустил бомбу" % player.id)
 
 
 func _apply_missile_command(command: GameCommand) -> void:
@@ -313,28 +331,30 @@ func _apply_missile_command(command: GameCommand) -> void:
 	if not is_position_inside_map(command.target):
 		_reject(command, &"target_outside_map")
 		return
-	if player.gold < MISSILE_GOLD_COST:
+	if player.gold < rules.missile_gold_cost:
 		_reject(command, &"not_enough_gold")
 		return
 	if player.missile_cooldown_ticks > 0:
 		_reject(command, &"missile_on_cooldown")
 		return
 
-	player.gold -= MISSILE_GOLD_COST
-	player.missile_cooldown_ticks = MISSILE_COOLDOWN_TICKS
+	player.gold -= rules.missile_gold_cost
+	player.missile_cooldown_ticks = rules.missile_cooldown_ticks
 	var strike: StrikeState = StrikeState.new(
 		_next_strike_id,
 		command.player_id,
 		StrikeState.Type.MISSILE,
 		command.target,
-		current_tick + MISSILE_WARNING_TICKS,
-		MISSILE_DAMAGE_RADIUS,
-		MISSILE_REVEAL_RADIUS
+		current_tick + rules.missile_warning_ticks,
+		rules.missile_damage_radius,
+		rules.missile_reveal_radius
 	)
 	strikes[strike.id] = strike
 	_next_strike_id += 1
 	resources_changed.emit(player.id, player.water, player.gold)
 	strike_scheduled.emit(strike.id)
+	total_strikes_launched += 1
+	_log_event("Игрок %d запустил ракету" % player.id)
 
 
 func _apply_replacement_command(command: GameCommand) -> void:
@@ -342,7 +362,7 @@ func _apply_replacement_command(command: GameCommand) -> void:
 	if player == null or player.active_unit_ids.is_empty():
 		_reject(command, &"no_active_units")
 		return
-	if player.active_unit_ids.size() >= MAXIMUM_ACTIVE_UNITS:
+	if player.active_unit_ids.size() >= rules.maximum_active_units:
 		_reject(command, &"maximum_units_reached")
 		return
 	if not is_position_inside_map(command.target):
@@ -366,6 +386,8 @@ func _apply_replacement_command(command: GameCommand) -> void:
 	_add_unit(unit_id, command.player_id, command.target)
 	resources_changed.emit(player.id, player.water, player.gold)
 	unit_spawned.emit(unit_id, command.player_id, command.target)
+	total_replacements_purchased += 1
+	_log_event("Игрок %d купил замену за %d золота" % [player.id, replacement_cost])
 
 
 func _advance_units() -> void:
@@ -374,12 +396,12 @@ func _advance_units() -> void:
 			continue
 
 		var from: Vector2 = unit.position
-		var maximum_distance: float = UNIT_MOVE_SPEED * SIMULATION_TICK_SECONDS
+		var maximum_distance: float = rules.unit_move_speed * rules.simulation_tick_seconds
 		unit.position = unit.position.move_toward(unit.movement_target, maximum_distance)
 		if unit.position.is_equal_approx(unit.movement_target):
 			unit.position = unit.movement_target
 			unit.is_moving = false
-		unit_moved.emit(unit.id, from, unit.position, SIMULATION_TICK_SECONDS)
+		unit_moved.emit(unit.id, from, unit.position, rules.simulation_tick_seconds)
 
 
 func _update_gathering_states() -> void:
@@ -442,7 +464,7 @@ func _resolve_due_strikes() -> void:
 	for strike: StrikeState in strikes.values():
 		if (
 			not strike.reveal_started
-			and strike.impact_tick - current_tick <= BOMB_REVEAL_LEAD_TICKS
+			and strike.impact_tick - current_tick <= _get_reveal_lead_ticks(strike)
 		):
 			_create_reveal_zone(strike)
 			reveal_started = true
@@ -469,6 +491,8 @@ func _resolve_due_strikes() -> void:
 		unit.gathering_resource_type = UnitState.ResourceType.NONE
 		players[unit.owner_id].active_unit_ids.erase(unit_id)
 		unit_destroyed.emit(unit.id, unit.position)
+		total_units_destroyed += 1
+		_log_event("Уничтожен юнит %d игрока %d" % [unit.id, unit.owner_id])
 	_finish_match_if_needed()
 
 
@@ -481,11 +505,23 @@ func _create_reveal_zone(strike: StrikeState) -> void:
 		strike.owner_id,
 		strike.target,
 		strike.reveal_radius,
-		strike.impact_tick + BOMB_REVEAL_DURATION_TICKS
+		strike.impact_tick + _get_reveal_duration_ticks(strike)
 	)
 	reveal_zones[zone.id] = zone
 	_next_reveal_zone_id += 1
 	reveal_zone_created.emit(zone.id)
+
+
+func _get_reveal_lead_ticks(strike: StrikeState) -> int:
+	if strike.type == StrikeState.Type.MISSILE:
+		return rules.missile_reveal_lead_ticks
+	return rules.bomb_reveal_lead_ticks
+
+
+func _get_reveal_duration_ticks(strike: StrikeState) -> int:
+	if strike.type == StrikeState.Type.MISSILE:
+		return rules.missile_reveal_duration_ticks
+	return rules.bomb_reveal_duration_ticks
 
 
 func _expire_reveal_zones() -> void:
@@ -535,7 +571,10 @@ func _add_unit(unit_id: int, owner_id: int, initial_position: Vector2) -> void:
 
 func _is_replacement_position_free(map_position: Vector2) -> bool:
 	for unit: UnitState in units.values():
-		if unit.alive and unit.position.distance_to(map_position) < REPLACEMENT_CLEARANCE_RADIUS:
+		if (
+			unit.alive
+			and unit.position.distance_to(map_position) < rules.replacement_clearance_radius
+		):
 			return false
 	return true
 
@@ -554,8 +593,24 @@ func _finish_match_if_needed() -> void:
 		winner_player_id = (eliminated_players[0] + 1) % PLAYER_COUNT
 	else:
 		winner_player_id = -1
+	var result_text: String = (
+		"Матч завершён вничью"
+		if winner_player_id == -1
+		else "Матч завершён, победил игрок %d" % winner_player_id
+	)
+	_log_event("%s за %.1f с" % [result_text, get_elapsed_seconds()])
 	match_ended.emit(winner_player_id)
 
 
 func _reject(command: GameCommand, reason: StringName) -> void:
+	total_commands_rejected += 1
+	_log_event("Команда игрока %d отклонена: %s" % [command.player_id, reason])
 	command_rejected.emit(command.player_id, command.type, reason)
+
+
+func _log_event(message: String) -> void:
+	var entry: String = "[%05.1f] %s" % [get_elapsed_seconds(), message]
+	event_log.append(entry)
+	while event_log.size() > rules.event_log_capacity:
+		event_log.pop_front()
+	event_logged.emit(entry)

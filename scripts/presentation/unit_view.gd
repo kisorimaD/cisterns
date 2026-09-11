@@ -17,6 +17,7 @@ const UPSTREAM_FONT_SIZE := 14
 var _movement_tween: Tween
 var _upstream_count := 0
 var _upstream_badge_visible := false
+var _facing_angle := 0.0
 
 
 func _ready() -> void:
@@ -33,6 +34,10 @@ func snap_to_position(new_position: Vector2) -> void:
 func move_to_position(new_position: Vector2, duration_seconds: float) -> void:
 	if _movement_tween != null:
 		_movement_tween.kill()
+	var movement_direction: Vector2 = new_position - position
+	if not movement_direction.is_zero_approx():
+		_facing_angle = movement_direction.angle()
+		queue_redraw()
 	map_position = new_position
 	_movement_tween = create_tween()
 	_movement_tween.set_trans(Tween.TRANS_LINEAR)
@@ -57,11 +62,13 @@ func set_upstream_count(count: int, is_visible: bool) -> void:
 
 func _draw() -> void:
 	# Temporary cistern silhouette: chassis, tracks and a round water tank.
+	draw_set_transform(Vector2.ZERO, _facing_angle)
 	draw_rect(Rect2(-Vector2(16.0, 10.0), Vector2(32.0, 20.0)), Color("#17262b"), true)
 	draw_rect(Rect2(-Vector2(14.0, 12.0), Vector2(28.0, 24.0)), team_color, true)
 	draw_circle(Vector2.ZERO, 9.0, team_color.lightened(0.18))
 	draw_circle(Vector2.ZERO, 9.0, Color("#e8f4f2"), false, 2.0)
 	draw_line(Vector2(7.0, 0.0), Vector2(18.0, 0.0), Color("#e8f4f2"), 3.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if _upstream_badge_visible:
 		_draw_upstream_badge()
 

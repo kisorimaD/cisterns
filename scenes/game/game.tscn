@@ -93,6 +93,8 @@ position = Vector2(512, 368)
 [connection signal="unit_gathering_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
 [connection signal="unit_visibility_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_visibility_changed"]
 [connection signal="command_submitted" from="Simulation/CommandGateway" to="Simulation/GameState" method="queue_command"]
+[connection signal="bomb_requested" from="UI/HUD" to="Controllers/HumanController" method="on_bomb_requested"]
+[connection signal="missile_requested" from="UI/HUD" to="Controllers/HumanController" method="on_missile_requested"]
 [connection signal="controlled_player_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="set_perspective"]
 [connection signal="controlled_player_changed" from="Controllers/HumanController" to="UI/HUD" method="on_controlled_player_changed"]
 [connection signal="debug_full_visibility_changed" from="Controllers/HumanController" to="Simulation/GameState" method="set_debug_full_visibility"]

@@ -1,57 +1,126 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://gt0dyaiwpn3c"]
 
-[ext_resource type="Script" path="res://scripts/presentation/hud.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://21bx3ai0u1a7" path="res://scripts/presentation/hud.gd" id="1_hud"]
+[ext_resource type="Texture2D" uid="uid://ddofy6w4whp3r" path="res://assets/ui/water.svg" id="2_water"]
+[ext_resource type="Texture2D" uid="uid://dasgj3ndtnl4h" path="res://assets/ui/gold.svg" id="3_gold"]
+[ext_resource type="Texture2D" uid="uid://buadse3fke6w5" path="res://assets/ui/bomb.svg" id="4_bomb"]
+[ext_resource type="Texture2D" uid="uid://r21xenb1r5xp" path="res://assets/ui/missile.svg" id="5_missile"]
 
-[node name="HUD" type="PanelContainer"]
-offset_left = 640.0
-offset_top = 44.0
-offset_right = 980.0
-offset_bottom = 258.0
+[node name="HUD" type="PanelContainer" unique_id=815265414]
+offset_left = 652.0
+offset_top = 24.0
+offset_right = 988.0
+offset_bottom = 366.0
 mouse_filter = 2
 script = ExtResource("1_hud")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=346973005]
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 9
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 9
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1547891320]
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 5
 
-[node name="ResourceLabel" type="Label" parent="MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
+[node name="ResourceBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1221090997]
+layout_mode = 2
 mouse_filter = 2
-text = "Запасы: вода 0 | золото 0"
+theme_override_constants/separation = 7
+alignment = 2
 
-[node name="SelectedIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
+[node name="WaterIcon" type="TextureRect" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=608263208]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
 mouse_filter = 2
+texture = ExtResource("2_water")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="WaterLabel" type="Label" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1501378988]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "0"
+vertical_alignment = 1
+
+[node name="GoldIcon" type="TextureRect" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1611017496]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3_gold")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="GoldLabel" type="Label" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1982314382]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "0"
+vertical_alignment = 1
+
+[node name="ResourceLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=644224926]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Юниты: 3/3"
+
+[node name="SelectedIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=376378776]
+unique_name_in_owner = true
+layout_mode = 2
 text = "Выберите цистерну"
 
-[node name="TargetIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+[node name="TargetIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=610435704]
 unique_name_in_owner = true
-mouse_filter = 2
+layout_mode = 2
 text = "Доход в точке появится здесь"
 
-[node name="BombLabel" type="Label" parent="MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
-mouse_filter = 2
-text = "Бомба: 6 воды | готова"
+[node name="AbilityBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=160307390]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
 
-[node name="ModeLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+[node name="BombButton" type="Button" parent="MarginContainer/VBoxContainer/AbilityBar" unique_id=1378288587]
 unique_name_in_owner = true
-mouse_filter = 2
-text = "Режим: движение | B — бомба"
+custom_minimum_size = Vector2(140, 42)
+layout_mode = 2
+size_flags_horizontal = 0
+tooltip_text = "Бомба"
+toggle_mode = true
+text = "6 воды"
+icon = ExtResource("4_bomb")
+expand_icon = true
 
-[node name="ErrorLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+[node name="MissileButton" type="Button" parent="MarginContainer/VBoxContainer/AbilityBar" unique_id=1011851168]
 unique_name_in_owner = true
-mouse_filter = 2
-text = ""
+custom_minimum_size = Vector2(140, 42)
+layout_mode = 2
+tooltip_text = "Ракета"
+toggle_mode = true
+text = "10 золота"
+icon = ExtResource("5_missile")
+expand_icon = true
 
-[node name="DebugLabel" type="Label" parent="MarginContainer/VBoxContainer"]
+[node name="BombLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1798400775]
 unique_name_in_owner = true
-mouse_filter = 2
+layout_mode = 2
+text = "Замена: 4 золота | полный состав"
+
+[node name="ModeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=993737037]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Режим: выберите юнит | B/M — удары | R — замена"
+
+[node name="ErrorLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=967834661]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="DebugLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=995499552]
+unique_name_in_owner = true
+layout_mode = 2
 text = "F1 обзор: выкл | F2 сторона: 0"

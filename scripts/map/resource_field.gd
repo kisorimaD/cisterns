@@ -2,8 +2,9 @@ class_name ResourceField2D
 extends Node2D
 
 @export var radius := 58.0
-@export var maximum_income := 3
 @export var field_color := Color(0.95, 0.72, 0.14, 0.32)
+
+var maximum_income := 0
 
 
 func _ready() -> void:
