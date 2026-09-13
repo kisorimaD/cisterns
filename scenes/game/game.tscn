@@ -77,6 +77,7 @@ position = Vector2(512, 368)
 [connection signal="tick_advanced" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_tick_advanced"]
 [connection signal="tick_advanced" from="Simulation/ClientMatchState" to="UI/HUD" method="on_tick_advanced"]
 [connection signal="unit_gathering_changed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
+[connection signal="unit_destroyed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_destroyed"]
 [connection signal="unit_moved" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_moved"]
 [connection signal="unit_removed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_removed"]
 [connection signal="unit_removed" from="Simulation/ClientMatchState" to="Controllers/HumanController" method="on_unit_removed"]

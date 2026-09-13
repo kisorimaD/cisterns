@@ -20,6 +20,7 @@ func _ready() -> void:
 	_game_state.command_rejected.connect(_on_server_command_rejected)
 	_game_state.match_ended.connect(_on_server_match_ended)
 	_game_state.strike_detonated.connect(_on_server_strike_detonated)
+	_game_state.unit_destroyed.connect(_on_server_unit_destroyed)
 	_network_session.peer_left.connect(_on_peer_left)
 	if _network_session.is_solo_game():
 		var bot_controller := BotController.new()
@@ -105,6 +106,11 @@ func receive_command_rejection(command_type: int, reason: StringName) -> void:
 @rpc("authority", "call_remote", "reliable", 1)
 func receive_strike_impact(record: Dictionary) -> void:
 	_client_state.apply_strike_impact(record)
+
+
+@rpc("authority", "call_remote", "reliable", 1)
+func receive_unit_destroyed(record: Dictionary) -> void:
+	_client_state.apply_unit_destroyed(record)
 
 
 func _receive_command(peer_id: int, payload: Dictionary, solo_player_id: int = -1) -> void:
@@ -231,6 +237,23 @@ func _on_server_strike_detonated(strike_id: int, _position: Vector2) -> void:
 			_client_state.apply_strike_impact(record)
 		else:
 			receive_strike_impact.rpc_id(peer_id, record)
+
+
+func _on_server_unit_destroyed(unit_id: int, position: Vector2) -> void:
+	if not multiplayer.is_server():
+		return
+	var unit: UnitState = _game_state.units.get(unit_id)
+	var record := {
+		"match_id": _network_session.current_match_id,
+		"id": unit_id,
+		"owner_id": unit.owner_id if unit != null else -1,
+		"position": position,
+	}
+	for peer_id: int in _network_session.connected_peer_ids():
+		if peer_id == 1:
+			_client_state.apply_unit_destroyed(record)
+		else:
+			receive_unit_destroyed.rpc_id(peer_id, record)
 
 
 func _on_peer_left(peer_id: int) -> void:

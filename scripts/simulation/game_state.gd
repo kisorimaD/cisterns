@@ -155,6 +155,34 @@ func get_reveal_zone(zone_id: int) -> RevealZoneState:
 	return reveal_zones.get(zone_id)
 
 
+func is_unit_detected_by_enemy(unit_id: int) -> bool:
+	var unit: UnitState = units.get(unit_id)
+	if unit == null or not unit.alive:
+		return false
+	for zone: RevealZoneState in reveal_zones.values():
+		if (
+			zone.source_strike_type == StrikeState.Type.BOMB
+			and zone.owner_id != unit.owner_id
+			and zone.center.distance_to(unit.position) <= zone.radius
+		):
+			return true
+	return false
+
+
+func is_unit_threatened_by_airstrike(unit_id: int) -> bool:
+	var unit: UnitState = units.get(unit_id)
+	if unit == null or not unit.alive:
+		return false
+	for strike: StrikeState in strikes.values():
+		if (
+			strike.type == StrikeState.Type.MISSILE
+			and strike.impact_tick > current_tick
+			and strike.target.distance_to(unit.position) <= strike.damage_radius
+		):
+			return true
+	return false
+
+
 func get_next_replacement_cost(player_id: int) -> int:
 	var player: PlayerState = players.get(player_id)
 	if player == null:
@@ -563,7 +591,8 @@ func _create_reveal_zone(strike: StrikeState) -> void:
 		strike.owner_id,
 		strike.target,
 		strike.reveal_radius,
-		strike.impact_tick + _get_reveal_duration_ticks(strike)
+		strike.impact_tick + _get_reveal_duration_ticks(strike),
+		strike.type
 	)
 	reveal_zones[zone.id] = zone
 	_next_reveal_zone_id += 1

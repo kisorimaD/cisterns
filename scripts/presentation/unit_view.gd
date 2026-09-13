@@ -11,6 +11,15 @@ const UPSTREAM_BADGE_RADIUS := 10.0
 const UPSTREAM_BADGE_COLOR := Color("#f4cf3f")
 const UPSTREAM_TEXT_COLOR := Color("#111111")
 const UPSTREAM_FONT_SIZE := 14
+const DETECTED_BADGE_COLOR := Color("#b9c2c9")
+const THREAT_BADGE_COLOR := Color("#e8453c")
+const BADGE_SYMBOL_COLOR := Color("#17191b")
+
+enum DangerState {
+	NONE,
+	DETECTED,
+	AIRSTRIKE,
+}
 
 @export var unit_id := -1
 @export var map_position := Vector2.ZERO
@@ -26,6 +35,8 @@ var _movement_tween: Tween
 var _upstream_count := 0
 var _upstream_badge_visible := false
 var _facing_angle := 0.0
+var _is_gathering := false
+var _danger_state: DangerState = DangerState.NONE
 
 
 func _ready() -> void:
@@ -58,7 +69,21 @@ func set_selected(is_selected: bool) -> void:
 
 
 func set_gathering(is_gathering: bool) -> void:
-	$GatheringIndicator.visible = is_gathering
+	_is_gathering = is_gathering
+	_update_gathering_indicator()
+
+
+func set_danger_state(is_detected: bool, is_airstrike_threatened: bool) -> void:
+	var next_state := DangerState.NONE
+	if is_airstrike_threatened:
+		next_state = DangerState.AIRSTRIKE
+	elif is_detected:
+		next_state = DangerState.DETECTED
+	if _danger_state == next_state:
+		return
+	_danger_state = next_state
+	_update_gathering_indicator()
+	queue_redraw()
 
 
 func set_upstream_count(count: int, is_visible: bool) -> void:
@@ -70,7 +95,11 @@ func set_upstream_count(count: int, is_visible: bool) -> void:
 
 
 func _draw() -> void:
-	if _upstream_badge_visible:
+	if _danger_state == DangerState.AIRSTRIKE:
+		_draw_airstrike_badge()
+	elif _danger_state == DangerState.DETECTED:
+		_draw_detected_badge()
+	elif _upstream_badge_visible:
 		_draw_upstream_badge()
 
 
@@ -127,6 +156,31 @@ func _draw_upstream_badge() -> void:
 		UPSTREAM_FONT_SIZE,
 		UPSTREAM_TEXT_COLOR
 	)
+
+
+func _draw_detected_badge() -> void:
+	draw_circle(UPSTREAM_BADGE_POSITION, UPSTREAM_BADGE_RADIUS + 1.0, DETECTED_BADGE_COLOR)
+	var center := UPSTREAM_BADGE_POSITION
+	var eye_pixels := PackedVector2Array([
+		Vector2(-6, -2), Vector2(-4, -4), Vector2(-2, -4), Vector2(0, -4),
+		Vector2(2, -4), Vector2(4, -4), Vector2(6, -2), Vector2(-6, 0),
+		Vector2(6, 0), Vector2(-4, 2), Vector2(-2, 4), Vector2(0, 4),
+		Vector2(2, 4), Vector2(4, 2), Vector2(0, -2), Vector2(0, 0),
+		Vector2(0, 2),
+	])
+	for pixel: Vector2 in eye_pixels:
+		draw_rect(Rect2(center + pixel - Vector2.ONE, Vector2(2, 2)), BADGE_SYMBOL_COLOR)
+
+
+func _draw_airstrike_badge() -> void:
+	draw_circle(UPSTREAM_BADGE_POSITION, UPSTREAM_BADGE_RADIUS + 1.0, THREAT_BADGE_COLOR)
+	var center := UPSTREAM_BADGE_POSITION
+	draw_rect(Rect2(center + Vector2(-2, -7), Vector2(4, 9)), BADGE_SYMBOL_COLOR)
+	draw_rect(Rect2(center + Vector2(-2, 5), Vector2(4, 4)), BADGE_SYMBOL_COLOR)
+
+
+func _update_gathering_indicator() -> void:
+	$GatheringIndicator.visible = _is_gathering and _danger_state == DangerState.NONE
 
 
 func _update_world_position() -> void:

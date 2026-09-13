@@ -29,6 +29,8 @@ static func build_snapshot(game_state: GameState, player_id: int, match_id: int)
 			"water_income": income.water_income if unit.owner_id == player_id else 0,
 			"gold_income": income.gold_income if unit.owner_id == player_id else 0,
 			"upstream_count": upstream_count,
+			"detected_by_enemy": game_state.is_unit_detected_by_enemy(unit.id),
+			"airstrike_threatened": game_state.is_unit_threatened_by_airstrike(unit.id),
 		})
 
 	var strike_records: Array[Dictionary] = []

@@ -16,11 +16,17 @@ signal replacement_requested
 @onready var _repair_price: Label = %RepairPrice
 @onready var _status_label: Label = %StatusLabel
 @onready var _network_session: NetworkSessionService = get_node("/root/NetworkSession")
+@onready var _network_match: NetworkMatch = %NetworkMatch
 
 var _perspective_player_id := -1
+var _match_overlay: ColorRect
+var _result_title: Label
+var _result_detail: Label
+var _repeat_button: Button
 
 
 func _ready() -> void:
+	_create_match_result_overlay()
 	_perspective_player_id = _network_session.local_player_id
 	_bomb_button.pressed.connect(bomb_requested.emit)
 	_missile_button.pressed.connect(missile_requested.emit)
@@ -153,20 +159,99 @@ func _ability_tooltip(title: String, price: int, resource: String, cooldown_tick
 func _refresh_match_result() -> void:
 	if not _client_state.match_finished:
 		return
+	if _match_overlay.visible:
+		return
 	var metrics: Dictionary = _client_state.get_match_metrics()
 	var result_text: String
 	if _client_state.winner_player_id == -1:
-		result_text = "Ничья"
+		result_text = "НИЧЬЯ"
 	elif _client_state.winner_player_id == _perspective_player_id:
-		result_text = "Победа!"
+		result_text = "ПОБЕДА"
 	else:
-		result_text = "Поражение"
-	_show_status("%s · %.1f с · Enter — реванш · Esc — меню" % [
-		result_text,
-		metrics.get("elapsed_seconds", 0.0),
-	])
+		result_text = "ПОРАЖЕНИЕ"
+	_result_title.text = result_text
+	_result_detail.text = "Матч длился %.1f с" % metrics.get("elapsed_seconds", 0.0)
+	_repeat_button.disabled = false
+	_match_overlay.visible = true
+	_show_status("")
 
 
 func _show_status(message: String) -> void:
 	_status_label.text = message
 	_status_label.visible = not message.is_empty()
+
+
+func _create_match_result_overlay() -> void:
+	_match_overlay = ColorRect.new()
+	_match_overlay.name = "MatchResultOverlay"
+	_match_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_match_overlay.color = Color(0.015, 0.025, 0.03, 0.62)
+	_match_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_match_overlay.visible = false
+	get_parent().add_child.call_deferred(_match_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_match_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(430.0, 220.0)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.055, 0.075, 0.08, 0.94)
+	panel_style.border_color = Color(0.76, 0.69, 0.37, 0.9)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(10)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 30)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 30)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	panel.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 15)
+	margin.add_child(content)
+
+	_result_title = Label.new()
+	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_result_title.add_theme_font_size_override("font_size", 32)
+	_result_title.add_theme_color_override("font_color", Color("#f5d86b"))
+	content.add_child(_result_title)
+
+	_result_detail = Label.new()
+	_result_detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_result_detail.add_theme_font_size_override("font_size", 16)
+	_result_detail.add_theme_color_override("font_color", Color("#d8ddd7"))
+	content.add_child(_result_detail)
+
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 12)
+	content.add_child(buttons)
+
+	_repeat_button = Button.new()
+	_repeat_button.text = "Повторить"
+	_repeat_button.custom_minimum_size = Vector2(150.0, 48.0)
+	_repeat_button.add_theme_font_size_override("font_size", 17)
+	_repeat_button.pressed.connect(_on_repeat_pressed)
+	buttons.add_child(_repeat_button)
+
+	var exit_button := Button.new()
+	exit_button.text = "Выйти из игры"
+	exit_button.custom_minimum_size = Vector2(170.0, 48.0)
+	exit_button.add_theme_font_size_override("font_size", 17)
+	exit_button.pressed.connect(_on_exit_pressed)
+	buttons.add_child(exit_button)
+
+
+func _on_repeat_pressed() -> void:
+	_repeat_button.disabled = true
+	_result_detail.text = "Ожидание второго игрока…"
+	_network_match.request_rematch()
+
+
+func _on_exit_pressed() -> void:
+	get_tree().quit()

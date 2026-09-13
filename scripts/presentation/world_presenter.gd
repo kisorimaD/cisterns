@@ -4,6 +4,7 @@ extends Node
 const STRIKE_VIEW_SCENE := preload("res://scenes/combat/strike_view.tscn")
 const REVEAL_ZONE_VIEW_SCENE := preload("res://scenes/combat/reveal_zone_view.tscn")
 const UNIT_VIEW_SCENE := preload("res://scenes/units/unit_view.tscn")
+const EXPLOSION_VIEW_SCRIPT := preload("res://scripts/presentation/explosion_view.gd")
 const TEAM_COLORS: Array[Color] = [Color("#67d5ff"), Color("#ef4f45")]
 
 @onready var _client_state: ClientMatchState = %ClientMatchState
@@ -153,6 +154,17 @@ func on_unit_removed(unit_id: int) -> void:
 	_refresh_upstream_indicators()
 
 
+func on_unit_destroyed(unit_id: int, _owner_id: int, map_position: Vector2) -> void:
+	var view: UnitView = _views_by_unit_id.get(unit_id)
+	if view != null:
+		view.queue_free()
+		_views_by_unit_id.erase(unit_id)
+	var explosion: Node2D = EXPLOSION_VIEW_SCRIPT.new()
+	explosion.position = map_position
+	_effects.add_child(explosion)
+	_refresh_upstream_indicators()
+
+
 func on_bomb_target_preview_changed(
 		map_position: Vector2,
 		strike_type: StrikeState.Type,
@@ -205,6 +217,10 @@ func _refresh_upstream_indicators() -> void:
 		var view: UnitView = _views_by_unit_id[unit_id]
 		var upstream_count: int = _client_state.get_upstream_count(unit_id)
 		view.set_upstream_count(maxi(0, upstream_count), upstream_count >= 0)
+		view.set_danger_state(
+			_client_state.is_unit_detected(unit_id),
+			_client_state.is_unit_threatened_by_airstrike(unit_id)
+		)
 
 
 func on_tick_advanced(_tick: int) -> void:

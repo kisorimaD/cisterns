@@ -19,6 +19,8 @@ func _run() -> void:
 	assert(hud.get_node_or_null("%RepairButton") != null)
 	assert(hud.get_node_or_null("%RepairButton").disabled)
 	assert(hud.get_node_or_null("%DebugLabel") == null)
+	assert(game.get_node_or_null("UI/MatchResultOverlay") != null)
+	assert(not game.get_node("UI/MatchResultOverlay").visible)
 	assert(game.get_node("World/Map").clip_children == CanvasItem.CLIP_CHILDREN_AND_DRAW)
 	assert(game.get_node("World/UnitViews").z_index > game.get_node("World/Map").z_index)
 	print("Presentation scene checks passed")

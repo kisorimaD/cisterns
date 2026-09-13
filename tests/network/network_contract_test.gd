@@ -97,6 +97,8 @@ func _test_network_scenes_and_project_settings() -> void:
 		ProjectSettings.get_setting("autoload/NetworkSession")
 		== "*res://scripts/network/network_session.gd"
 	)
+	assert(ProjectSettings.get_setting("display/window/size/mode") == 3)
+	assert(ProjectSettings.get_setting("display/window/stretch/mode") == "canvas_items")
 	var rules := load("res://resources/default_game_rules.tres") as GameRules
 	assert(rules != null)
 	assert(rules.player_initial_positions.size() == rules.maximum_active_units)

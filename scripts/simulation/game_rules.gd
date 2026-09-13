@@ -12,7 +12,7 @@ extends Resource
 @export var event_log_capacity := 12
 
 @export_category("Network")
-@export var network_content_version := 4
+@export var network_content_version := 5
 @export var network_port := 6026
 @export var network_max_clients := 1
 @export var network_dedicated_max_clients := 2

@@ -5,6 +5,7 @@ signal tick_advanced(tick: int)
 signal unit_spawned(unit_id: int, owner_id: int, position: Vector2)
 signal unit_moved(unit_id: int, from: Vector2, to: Vector2, duration_seconds: float)
 signal unit_removed(unit_id: int)
+signal unit_destroyed(unit_id: int, owner_id: int, position: Vector2)
 signal unit_gathering_changed(unit_id: int, resource_type: int)
 signal resources_changed(player_id: int, water: int, gold: int)
 signal strike_scheduled(strike_id: int)
@@ -30,6 +31,7 @@ var player: Dictionary = {}
 var match_finished := false
 var winner_player_id := -1
 var metrics: Dictionary = {}
+var _destroyed_unit_ids: Dictionary[int, bool] = {}
 
 @onready var _network_session: NetworkSessionService = get_node("/root/NetworkSession")
 
@@ -103,6 +105,14 @@ func get_upstream_count(unit_id: int) -> int:
 	return units.get(unit_id, {}).get("upstream_count", -1)
 
 
+func is_unit_detected(unit_id: int) -> bool:
+	return units.get(unit_id, {}).get("detected_by_enemy", false)
+
+
+func is_unit_threatened_by_airstrike(unit_id: int) -> bool:
+	return units.get(unit_id, {}).get("airstrike_threatened", false)
+
+
 func get_strike(strike_id: int) -> Dictionary:
 	return strikes.get(strike_id, {})
 
@@ -126,6 +136,24 @@ func apply_strike_impact(record: Dictionary) -> void:
 	)
 
 
+func apply_unit_destroyed(record: Dictionary) -> void:
+	if record.get("match_id", -1) != _network_session.current_match_id:
+		return
+	var unit_id: int = record.get("id", -1)
+	if unit_id < 0 or _destroyed_unit_ids.has(unit_id):
+		return
+	_destroyed_unit_ids[unit_id] = true
+	var was_present := units.has(unit_id)
+	units.erase(unit_id)
+	unit_destroyed.emit(
+		unit_id,
+		record.get("owner_id", -1),
+		record.get("position", Vector2.ZERO)
+	)
+	if was_present:
+		unit_removed.emit(unit_id)
+
+
 func _apply_units(records: Array) -> void:
 	var next_units: Dictionary[int, Dictionary] = {}
 	for value: Variant in records:
@@ -133,7 +161,7 @@ func _apply_units(records: Array) -> void:
 			continue
 		var record: Dictionary = value
 		var unit_id: int = record.get("id", -1)
-		if unit_id < 0:
+		if unit_id < 0 or _destroyed_unit_ids.has(unit_id):
 			continue
 		next_units[unit_id] = record.duplicate(true)
 		if not units.has(unit_id):

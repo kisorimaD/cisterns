@@ -1,7 +1,7 @@
 class_name NetworkProtocol
 extends RefCounted
 
-const VERSION := 2
+const VERSION := 3
 const MAXIMUM_COMMAND_TARGETS := 8
 
 
