@@ -220,7 +220,23 @@ func _try_launch_missile() -> void:
 		return
 	var target: Vector2 = _choose_missile_target()
 	if target != INVALID_TARGET:
-		_command_gateway.submit(GameCommand.launch_missile(_bot_player_id, target))
+		var targets := PackedVector2Array()
+		var start_angle: float = _rng.randf_range(0.0, TAU)
+		for index: int in _rules.airstrike_target_count:
+			var offset := Vector2.from_angle(
+				start_angle + TAU * float(index) / float(_rules.airstrike_target_count)
+			) * _rules.missile_damage_radius * 0.65
+			var spread_target: Vector2 = (target + offset).clamp(
+				Vector2.ZERO,
+				_rules.map_size
+			)
+			if not _is_safe_from_friendly_units_for_radius(
+				spread_target,
+				_rules.missile_damage_radius
+			):
+				spread_target = target
+			targets.append(spread_target)
+		_command_gateway.submit(GameCommand.launch_airstrike(_bot_player_id, targets))
 
 
 func _choose_missile_target() -> Vector2:

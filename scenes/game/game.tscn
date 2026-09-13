@@ -1,12 +1,14 @@
-[gd_scene load_steps=8 format=3 uid="uid://c4qsryw57h4t2"]
+[gd_scene format=3 uid="uid://c4qsryw57h4t2"]
 
 [ext_resource type="PackedScene" path="res://scenes/map/map.tscn" id="1_map"]
-[ext_resource type="PackedScene" path="res://scenes/units/unit_view.tscn" id="2_unit"]
 [ext_resource type="Script" uid="uid://bnowa8h46wl2m" path="res://scripts/simulation/game_state.gd" id="3_state"]
 [ext_resource type="Script" uid="uid://c2gaxx2rv8txt" path="res://scripts/commands/command_gateway.gd" id="4_gateway"]
 [ext_resource type="Script" uid="uid://b7oq1hhjgtij5" path="res://scripts/controllers/human_controller.gd" id="5_controller"]
 [ext_resource type="Script" uid="uid://djuf6fdlgc6x4" path="res://scripts/presentation/world_presenter.gd" id="6_presenter"]
-[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="7_hud"]
+[ext_resource type="PackedScene" uid="uid://gt0dyaiwpn3c" path="res://scenes/ui/hud.tscn" id="7_hud"]
+[ext_resource type="Script" uid="uid://cytbp5rmu2rdq" path="res://scripts/network/client_match_state.gd" id="8_client_state"]
+[ext_resource type="Script" uid="uid://no5hnk1fnikw" path="res://scripts/network/network_match.gd" id="9_network_match"]
+[ext_resource type="PackedScene" path="res://scenes/ui/cursor_resource_hint.tscn" id="10_cursor_hint"]
 
 [node name="Game" type="Node" unique_id=1934851739]
 
@@ -16,9 +18,17 @@
 unique_name_in_owner = true
 script = ExtResource("3_state")
 
+[node name="ClientMatchState" type="Node" parent="Simulation" unique_id=403366688]
+unique_name_in_owner = true
+script = ExtResource("8_client_state")
+
 [node name="CommandGateway" type="Node" parent="Simulation" unique_id=1580977484]
 unique_name_in_owner = true
 script = ExtResource("4_gateway")
+
+[node name="NetworkMatch" type="Node" parent="Simulation" unique_id=670313028]
+unique_name_in_owner = true
+script = ExtResource("9_network_match")
 
 [node name="World" type="Node2D" parent="." unique_id=1819472980]
 position = Vector2(32, 32)
@@ -28,42 +38,16 @@ unique_name_in_owner = true
 
 [node name="UnitViews" type="Node2D" parent="World" unique_id=127335591]
 unique_name_in_owner = true
-
-[node name="Unit1" parent="World/UnitViews" unique_id=1753333462 instance=ExtResource("2_unit")]
-unit_id = 1
-map_position = Vector2(120, 120)
-
-[node name="Unit2" parent="World/UnitViews" unique_id=1120073104 instance=ExtResource("2_unit")]
-unit_id = 2
-map_position = Vector2(120, 336)
-
-[node name="Unit3" parent="World/UnitViews" unique_id=562542962 instance=ExtResource("2_unit")]
-unit_id = 3
-map_position = Vector2(120, 552)
-
-[node name="EnemyUnit1" parent="World/UnitViews" instance=ExtResource("2_unit")]
-visible = false
-unit_id = 101
-map_position = Vector2(840, 120)
-team_color = Color(0.94, 0.31, 0.27, 1)
-
-[node name="EnemyUnit2" parent="World/UnitViews" instance=ExtResource("2_unit")]
-visible = false
-unit_id = 102
-map_position = Vector2(840, 336)
-team_color = Color(0.94, 0.31, 0.27, 1)
-
-[node name="EnemyUnit3" parent="World/UnitViews" instance=ExtResource("2_unit")]
-visible = false
-unit_id = 103
-map_position = Vector2(840, 552)
-team_color = Color(0.94, 0.31, 0.27, 1)
+z_index = 10
 
 [node name="TelegraphViews" type="Node2D" parent="World" unique_id=826074609]
+z_index = 20
 
 [node name="RevealViews" type="Node2D" parent="World" unique_id=1087883500]
+z_index = 5
 
 [node name="Effects" type="Node2D" parent="World" unique_id=1158327350]
+z_index = 30
 
 [node name="WorldPresenter" type="Node" parent="World" unique_id=67148642]
 script = ExtResource("6_presenter")
@@ -78,29 +62,32 @@ position = Vector2(512, 368)
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=767396074]
 
-[node name="HUD" parent="UI" instance=ExtResource("7_hud")]
+[node name="HUD" parent="UI" unique_id=1064570019 instance=ExtResource("7_hud")]
 
-[connection signal="unit_moved" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_moved"]
-[connection signal="resources_changed" from="Simulation/GameState" to="UI/HUD" method="on_resources_changed"]
-[connection signal="command_rejected" from="Simulation/GameState" to="UI/HUD" method="on_command_rejected"]
-[connection signal="reveal_zone_created" from="Simulation/GameState" to="World/WorldPresenter" method="on_reveal_zone_created"]
-[connection signal="reveal_zone_removed" from="Simulation/GameState" to="World/WorldPresenter" method="on_reveal_zone_removed"]
-[connection signal="strike_detonated" from="Simulation/GameState" to="World/WorldPresenter" method="on_strike_detonated"]
-[connection signal="strike_scheduled" from="Simulation/GameState" to="World/WorldPresenter" method="on_strike_scheduled"]
-[connection signal="tick_advanced" from="Simulation/GameState" to="UI/HUD" method="on_tick_advanced"]
-[connection signal="unit_destroyed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_destroyed"]
-[connection signal="unit_destroyed" from="Simulation/GameState" to="Controllers/HumanController" method="on_unit_destroyed"]
-[connection signal="unit_gathering_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
-[connection signal="unit_visibility_changed" from="Simulation/GameState" to="World/WorldPresenter" method="on_unit_visibility_changed"]
-[connection signal="command_submitted" from="Simulation/CommandGateway" to="Simulation/GameState" method="queue_command"]
-[connection signal="bomb_requested" from="UI/HUD" to="Controllers/HumanController" method="on_bomb_requested"]
-[connection signal="missile_requested" from="UI/HUD" to="Controllers/HumanController" method="on_missile_requested"]
-[connection signal="controlled_player_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="set_perspective"]
-[connection signal="controlled_player_changed" from="Controllers/HumanController" to="UI/HUD" method="on_controlled_player_changed"]
-[connection signal="debug_full_visibility_changed" from="Controllers/HumanController" to="Simulation/GameState" method="set_debug_full_visibility"]
-[connection signal="debug_full_visibility_changed" from="Controllers/HumanController" to="UI/HUD" method="on_debug_full_visibility_changed"]
+[node name="CursorResourceHint" parent="UI" unique_id=1054931894 instance=ExtResource("10_cursor_hint")]
+
+[connection signal="command_rejected" from="Simulation/ClientMatchState" to="UI/HUD" method="on_command_rejected"]
+[connection signal="match_ended" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_match_ended"]
+[connection signal="resources_changed" from="Simulation/ClientMatchState" to="UI/HUD" method="on_resources_changed"]
+[connection signal="reveal_zone_created" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_reveal_zone_created"]
+[connection signal="reveal_zone_removed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_reveal_zone_removed"]
+[connection signal="strike_detonated" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_strike_detonated"]
+[connection signal="strike_impacted" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_strike_impacted"]
+[connection signal="strike_scheduled" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_strike_scheduled"]
+[connection signal="tick_advanced" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_tick_advanced"]
+[connection signal="tick_advanced" from="Simulation/ClientMatchState" to="UI/HUD" method="on_tick_advanced"]
+[connection signal="unit_gathering_changed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_gathering_changed"]
+[connection signal="unit_moved" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_moved"]
+[connection signal="unit_removed" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_removed"]
+[connection signal="unit_removed" from="Simulation/ClientMatchState" to="Controllers/HumanController" method="on_unit_removed"]
+[connection signal="unit_spawned" from="Simulation/ClientMatchState" to="World/WorldPresenter" method="on_unit_spawned"]
+[connection signal="airstrike_target_count_changed" from="Controllers/HumanController" to="UI/HUD" method="on_airstrike_target_count_changed"]
+[connection signal="airstrike_targets_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_airstrike_targets_changed"]
 [connection signal="bomb_target_preview_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_bomb_target_preview_changed"]
 [connection signal="input_mode_changed" from="Controllers/HumanController" to="UI/HUD" method="on_input_mode_changed"]
 [connection signal="selected_unit_changed" from="Controllers/HumanController" to="World/WorldPresenter" method="on_selected_unit_changed"]
 [connection signal="selected_unit_changed" from="Controllers/HumanController" to="UI/HUD" method="on_selected_unit_changed"]
-[connection signal="target_preview_changed" from="Controllers/HumanController" to="UI/HUD" method="on_target_preview_changed"]
+[connection signal="target_preview_changed" from="Controllers/HumanController" to="UI/CursorResourceHint" method="on_target_preview_changed"]
+[connection signal="bomb_requested" from="UI/HUD" to="Controllers/HumanController" method="on_bomb_requested"]
+[connection signal="missile_requested" from="UI/HUD" to="Controllers/HumanController" method="on_missile_requested"]
+[connection signal="replacement_requested" from="UI/HUD" to="Controllers/HumanController" method="on_replacement_requested"]

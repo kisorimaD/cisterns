@@ -11,6 +11,7 @@ var id: int
 var owner_id: int
 var position: Vector2
 var movement_target: Vector2
+var movement_waypoints: Array[Vector2] = []
 var is_moving := false
 var alive := true
 var gathering_resource_type: ResourceType = ResourceType.NONE

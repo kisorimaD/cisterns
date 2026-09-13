@@ -1,15 +1,17 @@
 class_name CommandGateway
 extends Node
 
-signal command_submitted(command: GameCommand)
+@onready var _network_match: NetworkMatch = %NetworkMatch
+@onready var _network_session: NetworkSessionService = get_node("/root/NetworkSession")
 
 var _next_sequence_by_player: Dictionary[int, int] = {}
 
 
 func submit(command: GameCommand) -> void:
-	var sequence_number: int = 0
-	if _next_sequence_by_player.has(command.player_id):
-		sequence_number = _next_sequence_by_player[command.player_id]
-	command.sequence_number = sequence_number
-	_next_sequence_by_player[command.player_id] = sequence_number + 1
-	command_submitted.emit(command)
+	var player_id := _network_session.local_player_id
+	if _network_session.is_solo_game():
+		player_id = command.player_id
+	command.player_id = player_id
+	command.sequence_number = _next_sequence_by_player.get(player_id, 0)
+	_next_sequence_by_player[player_id] = command.sequence_number + 1
+	_network_match.submit_command(command)

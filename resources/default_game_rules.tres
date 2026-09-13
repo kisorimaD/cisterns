@@ -4,9 +4,14 @@
 
 [resource]
 script = ExtResource("1_rules")
-unit_move_speed = 60.0
+gathering_interval_ticks = 10
+initial_water = 5
+unit_move_speed = 40.0
 player_initial_positions = null
 bot_initial_positions = null
+gold_field_centers = null
+bomb_cooldown_ticks = 10
+missile_gold_cost = 20
 replacement_spawn_candidate_y = null
 bot_bomb_scouting_centers = null
 bot_missile_zoning_centers = null

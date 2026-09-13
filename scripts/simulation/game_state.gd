@@ -34,6 +34,7 @@ var strikes: Dictionary[int, StrikeState] = {}
 var reveal_zones: Dictionary[int, RevealZoneState] = {}
 var debug_full_visibility := false
 var match_finished := false
+var simulation_running := false
 var winner_player_id := -1
 var event_log: Array[String] = []
 var total_commands_received := 0
@@ -55,9 +56,32 @@ var _visibility_cache: Dictionary[String, bool] = {}
 
 func _ready() -> void:
 	_map.configure(rules)
+
+
+func start_match() -> void:
+	current_tick = 0
+	units.clear()
+	players.clear()
+	strikes.clear()
+	reveal_zones.clear()
+	event_log.clear()
+	_pending_commands.clear()
+	_expected_sequence_by_player.clear()
+	_next_unit_id_by_player.clear()
+	_visibility_cache.clear()
+	_tick_accumulator = 0.0
+	_next_strike_id = 1
+	_next_reveal_zone_id = 1
+	match_finished = false
+	winner_player_id = -1
+	total_commands_received = 0
+	total_commands_rejected = 0
+	total_strikes_launched = 0
+	total_units_destroyed = 0
+	total_replacements_purchased = 0
 	for player_id: int in PLAYER_COUNT:
 		players[player_id] = PlayerState.new(player_id)
-		players[player_id].water = rules.initial_water
+		players[player_id].water = mini(rules.initial_water, rules.maximum_water)
 		players[player_id].gold = rules.initial_gold
 		_expected_sequence_by_player[player_id] = 0
 	for index: int in rules.player_initial_positions.size():
@@ -68,10 +92,11 @@ func _ready() -> void:
 	_next_unit_id_by_player[1] = rules.bot_initial_positions.size() + 101
 	_rebuild_visibility_cache()
 	_log_event("Матч начат")
+	simulation_running = true
 
 
 func _process(delta: float) -> void:
-	if match_finished:
+	if not simulation_running or match_finished:
 		return
 	_tick_accumulator += delta
 	while _tick_accumulator >= rules.simulation_tick_seconds:
@@ -83,10 +108,21 @@ func _process(delta: float) -> void:
 
 func queue_command(command: GameCommand) -> void:
 	total_commands_received += 1
-	if match_finished:
+	if not simulation_running or match_finished:
 		_reject(command, &"match_finished")
 		return
 	_pending_commands.append(command)
+
+
+func finish_due_to_disconnect(remaining_player_id: int) -> void:
+	if match_finished:
+		return
+	match_finished = true
+	simulation_running = false
+	winner_player_id = remaining_player_id
+	_pending_commands.clear()
+	_log_event("Матч завершён: соперник отключился")
+	match_ended.emit(winner_player_id)
 
 
 func get_player_unit_at_position(player_id: int, map_position: Vector2) -> int:
@@ -282,8 +318,16 @@ func _apply_move_command(command: GameCommand) -> void:
 	if not is_position_inside_map(command.target):
 		_reject(command, &"target_outside_map")
 		return
-	unit.movement_target = command.target
-	unit.is_moving = not unit.position.is_equal_approx(command.target)
+	var path: PackedVector2Array = _map.build_movement_path(
+		unit.position,
+		command.target,
+		rules.unit_obstacle_clearance
+	)
+	unit.movement_waypoints.clear()
+	for waypoint: Vector2 in path:
+		unit.movement_waypoints.append(waypoint)
+	unit.movement_target = path[-1] if not path.is_empty() else unit.position
+	unit.is_moving = not unit.movement_waypoints.is_empty()
 	if unit.gathering_resource_type != UnitState.ResourceType.NONE:
 		unit.gathering_resource_type = UnitState.ResourceType.NONE
 		unit_gathering_changed.emit(unit.id, unit.gathering_resource_type)
@@ -328,9 +372,13 @@ func _apply_missile_command(command: GameCommand) -> void:
 	if player == null or player.active_unit_ids.is_empty():
 		_reject(command, &"no_active_units")
 		return
-	if not is_position_inside_map(command.target):
-		_reject(command, &"target_outside_map")
+	if command.targets.size() != rules.airstrike_target_count:
+		_reject(command, &"invalid_airstrike_target_count")
 		return
+	for target: Vector2 in command.targets:
+		if not is_position_inside_map(target):
+			_reject(command, &"target_outside_map")
+			return
 	if player.gold < rules.missile_gold_cost:
 		_reject(command, &"not_enough_gold")
 		return
@@ -340,21 +388,22 @@ func _apply_missile_command(command: GameCommand) -> void:
 
 	player.gold -= rules.missile_gold_cost
 	player.missile_cooldown_ticks = rules.missile_cooldown_ticks
-	var strike: StrikeState = StrikeState.new(
-		_next_strike_id,
-		command.player_id,
-		StrikeState.Type.MISSILE,
-		command.target,
-		current_tick + rules.missile_warning_ticks,
-		rules.missile_damage_radius,
-		rules.missile_reveal_radius
-	)
-	strikes[strike.id] = strike
-	_next_strike_id += 1
+	for target: Vector2 in command.targets:
+		var strike: StrikeState = StrikeState.new(
+			_next_strike_id,
+			command.player_id,
+			StrikeState.Type.MISSILE,
+			target,
+			current_tick + rules.missile_warning_ticks,
+			rules.missile_damage_radius,
+			rules.missile_reveal_radius
+		)
+		strikes[strike.id] = strike
+		_next_strike_id += 1
+		strike_scheduled.emit(strike.id)
 	resources_changed.emit(player.id, player.water, player.gold)
-	strike_scheduled.emit(strike.id)
-	total_strikes_launched += 1
-	_log_event("Игрок %d запустил ракету" % player.id)
+	total_strikes_launched += command.targets.size()
+	_log_event("Игрок %d вызвал авиаудар" % player.id)
 
 
 func _apply_replacement_command(command: GameCommand) -> void:
@@ -396,11 +445,18 @@ func _advance_units() -> void:
 			continue
 
 		var from: Vector2 = unit.position
-		var maximum_distance: float = rules.unit_move_speed * rules.simulation_tick_seconds
-		unit.position = unit.position.move_toward(unit.movement_target, maximum_distance)
-		if unit.position.is_equal_approx(unit.movement_target):
-			unit.position = unit.movement_target
-			unit.is_moving = false
+		var remaining_distance: float = rules.unit_move_speed * rules.simulation_tick_seconds
+		while remaining_distance > 0.0 and not unit.movement_waypoints.is_empty():
+			var waypoint: Vector2 = unit.movement_waypoints[0]
+			var distance_to_waypoint: float = unit.position.distance_to(waypoint)
+			if distance_to_waypoint <= remaining_distance:
+				unit.position = waypoint
+				remaining_distance -= distance_to_waypoint
+				unit.movement_waypoints.pop_front()
+			else:
+				unit.position = unit.position.move_toward(waypoint, remaining_distance)
+				remaining_distance = 0.0
+		unit.is_moving = not unit.movement_waypoints.is_empty()
 		unit_moved.emit(unit.id, from, unit.position, rules.simulation_tick_seconds)
 
 
@@ -430,8 +486,10 @@ func _gather_resources() -> void:
 		var income: ResourceSample = get_unit_income_preview(unit.id)
 		var amount: int = 0
 		if unit.gathering_resource_type == UnitState.ResourceType.WATER:
-			amount = income.water_income
-			players[unit.owner_id].water += amount
+			var player: PlayerState = players[unit.owner_id]
+			var previous_water: int = player.water
+			player.water = mini(rules.maximum_water, player.water + income.water_income)
+			amount = player.water - previous_water
 		else:
 			amount = income.gold_income
 			players[unit.owner_id].gold += amount
@@ -588,6 +646,7 @@ func _finish_match_if_needed() -> void:
 	if eliminated_players.is_empty():
 		return
 	match_finished = true
+	simulation_running = false
 	_pending_commands.clear()
 	if eliminated_players.size() == 1:
 		winner_player_id = (eliminated_players[0] + 1) % PLAYER_COUNT

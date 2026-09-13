@@ -8,11 +8,22 @@ extends Resource
 @export var gathering_interval_ticks := 8
 @export var initial_water := 12
 @export var initial_gold := 0
+@export var maximum_water := 30
 @export var event_log_capacity := 12
 
+@export_category("Network")
+@export var network_content_version := 4
+@export var network_port := 6026
+@export var network_max_clients := 1
+@export var network_dedicated_max_clients := 2
+@export var network_public_server_address := "84.54.47.92"
+@export var network_max_commands_per_second := 24
+@export var network_full_snapshot_interval_ticks := 8
+
 @export_category("Units")
-@export var unit_move_speed := 96.0
+@export var unit_move_speed := 64.0
 @export var unit_selection_radius := 22.0
+@export var unit_obstacle_clearance := 26.0
 @export var player_initial_positions := PackedVector2Array([
 	Vector2(120.0, 120.0),
 	Vector2(120.0, 336.0),
@@ -25,19 +36,27 @@ extends Resource
 ])
 
 @export_category("Map resources")
-@export var maximum_water_income := 10
+@export var maximum_water_income := 3
 @export var maximum_gold_income := 3
+@export var gold_field_inner_radius := 94.0
+@export var gold_field_outer_radius := 126.0
+@export var mountain_obstacle_radius := 64.0
+@export var gold_field_centers := PackedVector2Array([
+	Vector2(255.0, 325.0),
+	Vector2(705.0, 355.0),
+])
 
 @export_category("Bomb")
-@export var bomb_water_cost := 6
+@export var bomb_water_cost := 9
 @export var bomb_cooldown_ticks := 20
 @export var bomb_warning_ticks := 6
 @export var bomb_damage_radius := 40.0
 @export var bomb_reveal_radius := 80.0
-@export var bomb_reveal_lead_ticks := 1
+@export var bomb_reveal_lead_ticks := 0
 @export var bomb_reveal_duration_ticks := 12
 
 @export_category("Missile")
+@export var airstrike_target_count := 3
 @export var missile_gold_cost := 10
 @export var missile_cooldown_ticks := 40
 @export var missile_warning_ticks := 28
