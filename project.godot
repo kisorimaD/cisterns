@@ -15,9 +15,13 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Cisterns"
-run/main_scene="res://scenes/game/game.tscn"
+run/main_scene="res://scenes/bootstrap/bootstrap.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+NetworkSession="*res://scripts/network/network_session.gd"
 
 [display]
 

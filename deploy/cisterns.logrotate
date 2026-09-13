@@ -1,0 +1,10 @@
+/var/lib/cisterns/server.log {
+    weekly
+    size 1M
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

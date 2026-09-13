@@ -1,0 +1,33 @@
+[Unit]
+Description=Cisterns dedicated Godot server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=cisterns
+CacheDirectory=cisterns
+WorkingDirectory=/opt/cisterns
+Environment=XDG_DATA_HOME=/var/lib/cisterns
+Environment=XDG_CACHE_HOME=/var/cache/cisterns
+ExecStart=/opt/cisterns/Cisterns.x86_64 --headless --log-file /var/lib/cisterns/server.log -- --dedicated-server
+Restart=on-failure
+RestartSec=3
+Nice=5
+CPUQuota=50%
+MemoryHigh=256M
+MemoryMax=320M
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
