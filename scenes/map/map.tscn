@@ -1,15 +1,18 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/map/game_map.gd" id="1_map"]
 [ext_resource type="Script" path="res://scripts/map/river_data.gd" id="2_river"]
 [ext_resource type="PackedScene" path="res://scenes/map/resource_field.tscn" id="3_field"]
+[ext_resource type="Script" path="res://scripts/map/map_decoration.gd" id="4_decor"]
 
 [node name="Map" type="Node2D"]
+clip_children = 2
 script = ExtResource("1_map")
 
 [node name="Background" type="Node2D" parent="."]
 
 [node name="Decoration" type="Node2D" parent="."]
+script = ExtResource("4_decor")
 
 [node name="Obstacles" type="Node2D" parent="."]
 
@@ -40,11 +43,10 @@ center_color = Color(0.415686, 0.827451, 0.921569, 1)
 
 [node name="WestMountain" parent="ResourceFields" instance=ExtResource("3_field")]
 position = Vector2(255, 325)
-radius = 62.0
 
 [node name="EastMountain" parent="ResourceFields" instance=ExtResource("3_field")]
 position = Vector2(705, 355)
-radius = 62.0
+visual_variant = 1
 
 [node name="ResourceMarkers" type="Node2D" parent="."]
 

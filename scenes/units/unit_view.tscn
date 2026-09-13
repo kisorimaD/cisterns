@@ -9,15 +9,18 @@ script = ExtResource("1_unit")
 
 [node name="Tank" type="Node2D" parent="."]
 
+[node name="CisternSprite" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+
 [node name="SelectionRing" type="Line2D" parent="."]
 visible = false
-points = PackedVector2Array(-18, 0, -12.728, -12.728, 0, -18, 12.728, -12.728, 18, 0, 12.728, 12.728, 0, 18, -12.728, 12.728, -18, 0)
+points = PackedVector2Array(-25, 0, -17.678, -17.678, 0, -25, 17.678, -17.678, 25, 0, 17.678, 17.678, 0, 25, -17.678, 17.678, -25, 0)
 width = 2.0
 default_color = Color(1, 0.86, 0.25, 1)
 
 [node name="GatheringIndicator" type="Polygon2D" parent="."]
 visible = false
-polygon = PackedVector2Array(-5, -20, 5, -20, 7, -14, 0, -9, -7, -14)
+polygon = PackedVector2Array(-5, -31, 5, -31, 7, -25, 0, -20, -7, -25)
 color = Color(0.976471, 0.807843, 0.25098, 1)
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]

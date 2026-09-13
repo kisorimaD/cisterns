@@ -1,0 +1,69 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/presentation/cursor_resource_hint.gd" id="1_hint"]
+[ext_resource type="Texture2D" path="res://assets/ui/water.svg" id="2_water"]
+[ext_resource type="Texture2D" path="res://assets/ui/gold.svg" id="3_gold"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_hint"]
+bg_color = Color(0.08, 0.105, 0.11, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.78, 0.72, 0.48, 0.72)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="CursorResourceHint" type="PanelContainer"]
+offset_right = 92.0
+offset_bottom = 30.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_hint")
+script = ExtResource("1_hint")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 7
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 7
+theme_override_constants/margin_bottom = 3
+
+[node name="Values" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="WaterIcon" type="TextureRect" parent="Margin/Values"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("2_water")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="WaterValue" type="Label" parent="Margin/Values"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 0)
+layout_mode = 2
+mouse_filter = 2
+text = "0"
+vertical_alignment = 1
+
+[node name="GoldIcon" type="TextureRect" parent="Margin/Values"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("3_gold")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="GoldValue" type="Label" parent="Margin/Values"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 0)
+layout_mode = 2
+mouse_filter = 2
+text = "0"
+vertical_alignment = 1

@@ -1,39 +1,52 @@
 [gd_scene format=3 uid="uid://gt0dyaiwpn3c"]
 
-[ext_resource type="Script" uid="uid://21bx3ai0u1a7" path="res://scripts/presentation/hud.gd" id="1_hud"]
-[ext_resource type="Texture2D" uid="uid://ddofy6w4whp3r" path="res://assets/ui/water.svg" id="2_water"]
-[ext_resource type="Texture2D" uid="uid://dasgj3ndtnl4h" path="res://assets/ui/gold.svg" id="3_gold"]
-[ext_resource type="Texture2D" uid="uid://buadse3fke6w5" path="res://assets/ui/bomb.svg" id="4_bomb"]
-[ext_resource type="Texture2D" uid="uid://r21xenb1r5xp" path="res://assets/ui/missile.svg" id="5_missile"]
+[ext_resource type="Script" path="res://scripts/presentation/hud.gd" id="1_hud"]
+[ext_resource type="Texture2D" path="res://assets/ui/water.svg" id="2_water"]
+[ext_resource type="Texture2D" path="res://assets/ui/gold.svg" id="3_gold"]
+[ext_resource type="Texture2D" path="res://assets/ui/bomb.svg" id="4_bomb"]
+[ext_resource type="Texture2D" path="res://assets/ui/airstrike.svg" id="5_airstrike"]
+[ext_resource type="Texture2D" path="res://assets/ui/repair.svg" id="6_repair"]
 
-[node name="HUD" type="PanelContainer" unique_id=815265414]
-offset_left = 652.0
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+bg_color = Color(0.075, 0.1, 0.105, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.63, 0.68, 0.62, 0.62)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[node name="HUD" type="PanelContainer"]
+offset_left = 24.0
 offset_top = 24.0
-offset_right = 988.0
-offset_bottom = 366.0
+offset_right = 226.0
+offset_bottom = 132.0
 mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_panel")
 script = ExtResource("1_hud")
 
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=346973005]
+[node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 9
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1547891320]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 5
-
-[node name="ResourceBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1221090997]
+[node name="Content" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 7
-alignment = 2
 
-[node name="WaterIcon" type="TextureRect" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=608263208]
+[node name="ResourceBar" type="HBoxContainer" parent="Margin/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 7
+
+[node name="WaterIcon" type="TextureRect" parent="Margin/Content/ResourceBar"]
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
@@ -41,15 +54,16 @@ texture = ExtResource("2_water")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="WaterLabel" type="Label" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1501378988]
+[node name="WaterLabel" type="Label" parent="Margin/Content/ResourceBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(48, 0)
 layout_mode = 2
+mouse_filter = 2
 theme_override_font_sizes/font_size = 18
 text = "0"
 vertical_alignment = 1
 
-[node name="GoldIcon" type="TextureRect" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1611017496]
+[node name="GoldIcon" type="TextureRect" parent="Margin/Content/ResourceBar"]
 custom_minimum_size = Vector2(24, 24)
 layout_mode = 2
 mouse_filter = 2
@@ -57,70 +71,145 @@ texture = ExtResource("3_gold")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="GoldLabel" type="Label" parent="MarginContainer/VBoxContainer/ResourceBar" unique_id=1982314382]
+[node name="GoldLabel" type="Label" parent="Margin/Content/ResourceBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(42, 0)
+custom_minimum_size = Vector2(48, 0)
 layout_mode = 2
+mouse_filter = 2
 theme_override_font_sizes/font_size = 18
 text = "0"
 vertical_alignment = 1
 
-[node name="ResourceLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=644224926]
-unique_name_in_owner = true
+[node name="AbilityBar" type="HBoxContainer" parent="Margin/Content"]
 layout_mode = 2
-text = "Юниты: 3/3"
+mouse_filter = 2
+theme_override_constants/separation = 7
 
-[node name="SelectedIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=376378776]
-unique_name_in_owner = true
+[node name="BombSlot" type="Control" parent="Margin/Content/AbilityBar"]
+custom_minimum_size = Vector2(56, 52)
 layout_mode = 2
-text = "Выберите цистерну"
+mouse_filter = 2
 
-[node name="TargetIncomeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=610435704]
+[node name="BombButton" type="Button" parent="Margin/Content/AbilityBar/BombSlot"]
 unique_name_in_owner = true
-layout_mode = 2
-text = "Доход в точке появится здесь"
-
-[node name="AbilityBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=160307390]
-layout_mode = 2
-theme_override_constants/separation = 8
-alignment = 1
-
-[node name="BombButton" type="Button" parent="MarginContainer/VBoxContainer/AbilityBar" unique_id=1378288587]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(140, 42)
-layout_mode = 2
-size_flags_horizontal = 0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 tooltip_text = "Бомба"
 toggle_mode = true
-text = "6 воды"
 icon = ExtResource("4_bomb")
 expand_icon = true
 
-[node name="MissileButton" type="Button" parent="MarginContainer/VBoxContainer/AbilityBar" unique_id=1011851168]
+[node name="BombPrice" type="Label" parent="Margin/Content/AbilityBar/BombSlot"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(140, 42)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -28.0
+offset_top = -20.0
+offset_right = -4.0
+offset_bottom = -2.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.42, 0.84, 1, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.05, 0.06, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 13
+text = "15"
+horizontal_alignment = 2
+
+[node name="MissileSlot" type="Control" parent="Margin/Content/AbilityBar"]
+custom_minimum_size = Vector2(56, 52)
 layout_mode = 2
-tooltip_text = "Ракета"
+mouse_filter = 2
+
+[node name="MissileButton" type="Button" parent="Margin/Content/AbilityBar/MissileSlot"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+tooltip_text = "Авиаудар"
 toggle_mode = true
-text = "10 золота"
-icon = ExtResource("5_missile")
+icon = ExtResource("5_airstrike")
 expand_icon = true
 
-[node name="BombLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1798400775]
+[node name="MissilePrice" type="Label" parent="Margin/Content/AbilityBar/MissileSlot"]
 unique_name_in_owner = true
-layout_mode = 2
-text = "Замена: 4 золота | полный состав"
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -28.0
+offset_top = -20.0
+offset_right = -4.0
+offset_bottom = -2.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.27, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.05, 0.06, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 13
+text = "20"
+horizontal_alignment = 2
 
-[node name="ModeLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=993737037]
-unique_name_in_owner = true
+[node name="RepairSlot" type="Control" parent="Margin/Content/AbilityBar"]
+custom_minimum_size = Vector2(56, 52)
 layout_mode = 2
-text = "Режим: выберите юнит | B/M — удары | R — замена"
+mouse_filter = 2
 
-[node name="ErrorLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=967834661]
+[node name="RepairButton" type="Button" parent="Margin/Content/AbilityBar/RepairSlot"]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+tooltip_text = "Восстановить цистерну"
+toggle_mode = true
+icon = ExtResource("6_repair")
+expand_icon = true
 
-[node name="DebugLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=995499552]
+[node name="RepairPrice" type="Label" parent="Margin/Content/AbilityBar/RepairSlot"]
 unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -28.0
+offset_top = -20.0
+offset_right = -4.0
+offset_bottom = -2.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.27, 1)
+theme_override_colors/font_outline_color = Color(0.04, 0.05, 0.06, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 13
+text = "4"
+horizontal_alignment = 2
+
+[node name="StatusLabel" type="Label" parent="Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(182, 0)
 layout_mode = 2
-text = "F1 обзор: выкл | F2 сторона: 0"
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.89, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2

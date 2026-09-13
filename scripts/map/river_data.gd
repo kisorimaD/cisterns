@@ -1,6 +1,10 @@
 class_name RiverData
 extends Node2D
 
+const DETAIL_ATLAS: Texture2D = preload("res://assets/map/river_details.png")
+const DETAIL_COLUMNS := 4
+const DETAIL_ROWS := 2
+
 @export var river_id := 0
 @export var path_points := PackedVector2Array([
 	Vector2.ZERO,
@@ -16,6 +20,7 @@ var _curve := Curve2D.new()
 
 func _ready() -> void:
 	_rebuild_curve()
+	_create_detail_sprites()
 	queue_redraw()
 
 
@@ -39,8 +44,11 @@ func _draw() -> void:
 	if _curve.point_count < 2:
 		return
 	var baked_points: PackedVector2Array = _curve.get_baked_points()
+	draw_polyline(baked_points, Color("#172a2c"), half_width * 2.0 + 14.0, true)
+	draw_polyline(baked_points, Color("#827553"), half_width * 2.0 + 8.0, true)
 	draw_polyline(baked_points, river_color, half_width * 2.0, true)
-	draw_polyline(baked_points, center_color, 4.0, true)
+	draw_polyline(baked_points, Color(center_color, 0.32), 9.0, true)
+	draw_polyline(baked_points, Color(center_color, 0.78), 3.0, true)
 	draw_circle(path_points[0], half_width, river_color)
 	draw_circle(path_points[path_points.size() - 1], half_width, river_color)
 	var half_offset: float = _curve.get_baked_length() * 0.5
@@ -58,6 +66,35 @@ func _draw() -> void:
 		]),
 		center_color
 	)
+
+
+func _create_detail_sprites() -> void:
+	var cell_size := Vector2(
+		float(DETAIL_ATLAS.get_width()) / DETAIL_COLUMNS,
+		float(DETAIL_ATLAS.get_height()) / DETAIL_ROWS
+	)
+	var river_length: float = _curve.get_baked_length()
+	for index: int in 7:
+		var offset: float = river_length * float(index + 1) / 8.0
+		var point: Vector2 = _curve.sample_baked(offset)
+		var next_point: Vector2 = _curve.sample_baked(minf(offset + 4.0, river_length))
+		var direction: Vector2 = (next_point - point).normalized()
+		var atlas_index: int = (index * 3 + river_id * 2) % (DETAIL_COLUMNS * DETAIL_ROWS)
+		var sprite := Sprite2D.new()
+		sprite.texture = DETAIL_ATLAS
+		sprite.region_enabled = true
+		sprite.region_rect = Rect2(
+			Vector2(atlas_index % DETAIL_COLUMNS, atlas_index / DETAIL_COLUMNS) * cell_size,
+			cell_size
+		)
+		var side_factor: float = -0.58 if index % 2 == 0 else 0.58
+		sprite.position = point + direction.orthogonal() * half_width * side_factor
+		sprite.scale = Vector2.ONE * (0.075 if atlas_index < 2 else 0.09)
+		sprite.rotation = direction.angle()
+		sprite.modulate.a = 0.82
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.z_index = 1
+		add_child(sprite)
 
 
 func _rebuild_curve() -> void:
